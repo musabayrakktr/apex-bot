@@ -1,13 +1,9 @@
 import os
-import time
 from flask import Flask, request, jsonify
-import threading
-import ccxt
 import requests
 
 app = Flask(__name__)
 
-# TELEGRAM BİLGİLERİ
 TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
 CHAT_ID = "8982017587"
 
@@ -30,15 +26,6 @@ def send_telegram(message, chat_id=CHAT_ID):
 def home():
     return "APEX Bot 7/24 Aktif ve İnteraktif!"
 
-@app.route('/test')
-def test_msg():
-    success = send_telegram("🧪 *APEX | TEST BİLDİRİMİ*\n\nİnteraktif sistem kusursuz çalışıyor kanka! 🚀")
-    if success:
-        return "Test mesajı Telegram'a başarıyla gönderildi!"
-    else:
-        return "Mesaj gönderilemedi!"
-
-# TELEGRAM'DAN GELEN KOMUTLARI YÖNETEN ENDPOINT (WEBHOOK)
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
     try:
@@ -48,15 +35,15 @@ def telegram_webhook():
             text = data["message"].get("text", "").strip().lower()
 
             if text in ["/btc", "btc"]:
-                price, support, res = get_coin_data('BTC/USDT')
+                price, support, res = get_binance_data('BTCUSDT')
                 reply = f"🪙 *Bitcoin (BTC) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/eth", "eth"]:
-                price, support, res = get_coin_data('ETH/USDT')
+                price, support, res = get_binance_data('ETHUSDT')
                 reply = f"🪙 *Ethereum (ETH) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/sol", "sol"]:
-                price, support, res = get_coin_data('SOL/USDT')
+                price, support, res = get_binance_data('SOLUSDT')
                 reply = f"🪙 *Solana (SOL) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/start", "/test"]:
@@ -67,22 +54,19 @@ def telegram_webhook():
         print(f"Telegram webhook hatası: {e}")
         return jsonify({"status": "error"}), 400
 
-def get_coin_data(symbol):
+def get_binance_data(symbol):
     try:
-        exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=30)
-        closes = [x[4] for x in ohlcv]
+        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=30"
+        res = requests.get(url, timeout=5).json()
+        closes = [float(x[4]) for x in res]
         current_price = f"{closes[-1]:,.2f}"
         support = f"{min(closes[-20:]):,.2f}"
         resistance = f"{max(closes[-20:]):,.2f}"
         return current_price, support, resistance
-    except:
+    except Exception as e:
+        print(f"Binance API hatası: {e}")
         return "Veri alınamadı", "Veri alınamadı", "Veri alınamadı"
 
-def run_flask():
+if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
-
-if __name__ == '__main__':
-    threading.Thread(target=run_flask).start()
-    # Otomatik arka plan döngüsü istersen buraya eklenebilir

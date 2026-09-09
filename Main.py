@@ -1,4 +1,4 @@
-!pip install ccxt pandas requests
+
 import ccxt
 import pandas as pd
 import requests

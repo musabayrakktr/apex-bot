@@ -37,6 +37,28 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram hatası: {e}")
         return False
 
+# Telegram menü komutlarını otomatik ayarlayan fonksiyon
+def set_telegram_commands():
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
+    commands = [
+        {"command": "start", "description": "Botu başlat ve menüyü gör"},
+        {"command": "btc", "description": "Bitcoin anlık durum ve analiz"},
+        {"command": "eth", "description": "Ethereum anlık durum ve analiz"},
+        {"command": "sol", "description": "Solana anlık durum ve analiz"},
+        {"command": "dolar", "description": "Dolar kuru (USD/TL)"},
+        {"command": "gram", "description": "Gram altın fiyatı"},
+        {"command": "ceyrek", "description": "Çeyrek altın fiyatı"},
+        {"command": "test", "description": "Test bildirimi gönder"}
+    ]
+    payload = {"commands": commands}
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+    try:
+        urllib.request.urlopen(req, timeout=10)
+        print("Telegram menü komutları başarıyla güncellendi.")
+    except Exception as e:
+        print(f"Komut menüsü ayarlama hatası: {e}")
+
 def background_scanner():
     global crypto_cache
     while True:
@@ -63,7 +85,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Güncel Piyasa Modu Aktif!"
+    return "APEX Bot Menü ve Piyasa Modu Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -106,9 +128,12 @@ def telegram_webhook():
         return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':
+    # Telegram menü komutlarını bir kere sisteme kaydediyoruz
+    set_telegram_commands()
+
+    # Arka plan tarayıcısını başlatıyoruz
     t = threading.Thread(target=background_scanner, daemon=True)
     t.start()
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
-

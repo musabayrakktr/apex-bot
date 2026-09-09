@@ -84,3 +84,4 @@ while True:
     except Exception as e:
         print(f"Hata oluştu: {e}")
     time.sleep(900)
+

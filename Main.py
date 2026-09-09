@@ -7,44 +7,38 @@ import requests
 
 app = Flask(__name__)
 
-# Telegram Ayarları (Render Çevre Değişkenleri veya Varsayılan)
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "​8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc")
-CHAT_ID = os.environ.get("CHAT_ID", "​8982017587")
+# TELEGRAM BİLGİLERİ (DOĞRUDAN TANIMLI)
+TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
+CHAT_ID = "8982017587"
 
 def send_telegram(message):
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("HATA: TELEGRAM_TOKEN veya CHAT_ID eksik!")
-        return False
-    
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID, 
-        "text": message, 
+        "chat_id": CHAT_ID,
+        "text": message,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True
     }
     try:
-        res = requests.post(url, json=payload)
-        print(f"Telegram Yanıtı: {res.status_code}")
+        res = requests.post(url, json=payload, timeout=10)
+        print(f"Telegram Yanıtı: {res.status_code} - {res.text}")
         return res.status_code == 200
     except Exception as e:
-        print(f"Telegram mesajı gönderilemedi: {e}")
+        print(f"Telegram hatası: {e}")
         return False
 
 @app.route('/')
 def home():
     return "APEX Bot 7/24 Aktif!"
 
-# YENİ TEST BUTONU: Tarayıcıdan girince anında Telegram'a mesaj atar!
 @app.route('/test')
 def test_msg():
     success = send_telegram("🧪 *APEX | TEST BİLDİRİMİ*\n\nSistem kusursuz çalışıyor kanka! 🚀")
     if success:
         return "Test mesajı Telegram'a başarıyla gönderildi!"
     else:
-        return "Mesaj gönderilemedi. Telegram Token veya Chat ID bilgilerini kontrol et!"
+        return "Mesaj gönderilemedi! Token veya Chat ID hatalı."
 
-# TradingView Webhook
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     try:
@@ -119,7 +113,6 @@ def analyze_market():
             print(f"{symbol} hatası: {e}")
 
 def bot_loop():
-    # Başlangıçta bildirim gönder
     send_telegram("🚀 *APEX BOT AKTİF!*\n-----------------------------------\nSepet: BTC, ETH, SOL taranıyor...")
     while True:
         analyze_market()

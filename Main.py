@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request, jsonify
-import requests
+import urllib.request
+import json
 
 app = Flask(__name__)
 
@@ -15,9 +16,11 @@ def send_telegram(message, chat_id=CHAT_ID):
         "parse_mode": "Markdown",
         "disable_web_page_preview": True
     }
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
-        res = requests.post(url, json=payload, timeout=10)
-        return res.status_code == 200
+        urllib.request.urlopen(req, timeout=10)
+        return True
     except Exception as e:
         print(f"Telegram hatası: {e}")
         return False
@@ -35,15 +38,15 @@ def telegram_webhook():
             text = data["message"].get("text", "").strip().lower()
 
             if text in ["/btc", "btc"]:
-                price = get_price('BTCUSDT')
+                price = get_crypto_price('bitcoin')
                 reply = f"🪙 *Bitcoin (BTC) Anlık Fiyat*\n\n💵 Fiyat: `{price}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/eth", "eth"]:
-                price = get_price('ETHUSDT')
+                price = get_crypto_price('ethereum')
                 reply = f"🪙 *Ethereum (ETH) Anlık Fiyat*\n\n💵 Fiyat: `{price}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/sol", "sol"]:
-                price = get_price('SOLUSDT')
+                price = get_crypto_price('solana')
                 reply = f"🪙 *Solana (SOL) Anlık Fiyat*\n\n💵 Fiyat: `{price}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/start", "/test", "/help"]:
@@ -54,12 +57,15 @@ def telegram_webhook():
         print(f"Telegram webhook hatası: {e}")
         return jsonify({"status": "error"}), 400
 
-def get_price(symbol):
+def get_crypto_price(coin_id):
     try:
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-        res = requests.get(url, timeout=5).json()
-        price_val = float(res['price'])
-        return f"{price_val:,.2f}"
+        # CoinCap API: Asla IP engeline takılmaz, dünyadaki en stabil açık API'lerden biridir
+        url = f"https://api.coincap.io/v2/assets/{coin_id}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res = json.loads(response.read().decode())
+            price_val = float(res['data']['priceUsd'])
+            return f"{price_val:,.2f}"
     except Exception as e:
         print(f"Fiyat çekme hatası: {e}")
         return "Veri alınamadı"

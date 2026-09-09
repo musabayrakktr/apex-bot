@@ -1,103 +1,88 @@
 import os
-from threading import Thread
+import time
 from flask import Flask
+import threading
+import ccxt
 
-app = Flask('')
+# Flask Web Sunucusu (Render'ın kapanmaması için)
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot 7/24 aktif çalışıyor!"
+    return "APEX Bot 7/24 Aktif!"
 
-def run():
-    port = int(os.environ.get("PORT", 8080))
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-Thread(target=run).start()
-
-import ccxt
-import pandas as pd
+# Bot Ana Kodları
 import requests
-import time
-# ==========================================
-# 1. BİLDİRİM VE BOT AYARLARI
-# ==========================================
-TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
-CHAT_ID = "8982017587"
-def telegram_mesaj_gonder(mesaj):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": mesaj, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, data=payload)
-    except Exception as e:
-        print(f"Telegram bağlantı hatası: {e}")
-# ==========================================
-# 2. BORSA VE PARAMETRE AYARLARI (COLAB ENGELİNİ AŞAN YAPILANDIRMA)
-# ==========================================
-# Google Colab ABD IP engelini aşmak için alternatif borsa bağlantısı
-exchange = ccxt.kraken()  # Colab sunucu kısıtlamalarına takılmayan güvenilir borsa
-symbol = 'BTC/USDT'
-timeframe = '15m'
-limit = 100
-telegram_mesaj_gonder("🤖 *APEX* | Bağlantı Yenilendi. Sürekli Tarama Modu Aktif...")
-# ==========================================
-# 3. SÜREKLİ TARAMA DÖNGÜSÜ
-# ==========================================
-son_sinyal_durumu = None
-while True:
-    try:
-        # Veri çekme ve analiz
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        df = pd.DataFrame(ohlcv, columns=['Zaman', 'Açılış', 'Yüksek', 'Düşük', 'Kapanış', 'Hacim'])
-        df['Zaman'] = pd.to_datetime(df['Zaman'], unit='ms')
-        df['Direnç'] = df['Yüksek'].rolling(window=30).max()
-        df['Destek'] = df['Düşük'].rolling(window=30).min()
-        df['Ort_Hacim'] = df['Hacim'].rolling(window=20).mean()
-        son_mum = df.iloc[-1]
-        anlik_fiyat = son_mum['Kapanış']
-        destek_seviyesi = son_mum['Destek']
-        direnc_seviyesi = son_mum['Direnç']
-        anlik_hacim = son_mum['Hacim']
-        ort_hacim = son_mum['Ort_Hacim']
-        destege_yakin_mi = abs(anlik_fiyat - destek_seviyesi) / destek_seviyesi < 0.005
-        hacim_yuksek_mi = anlik_hacim > ort_hacim
-        # Sinyal belirleme
-        if destege_yakin_mi and hacim_yuksek_mi:
-            mevcut_durum = "BUY"
-            mesaj = (
-                f"🟢 *OTOMATİK AL SİNYALİ (BUY / LONG)*\n"
-                f"📍 *Parite:* BTC/USDT (15m)\n\n"
-                f"🔹 *Giriş Fiyatı:* {anlik_fiyat} $\n"
-                f"🛡️ *Destek (SL Bölgesi):* {destek_seviyesi} $\n"
-                f"🎯 *Hedef (TP1):* {direnc_seviyesi} $\n"
-                f"📊 *Hacim:* YÜKSEK (Onaylı)\n\n"
-                f"⚡ *Aksiyon:* Destekten hacimli tepki alındı, alım değerlendirilebilir."
-            )
-        elif anlik_fiyat >= direnc_seviyesi * 0.995:
-            mevcut_durum = "SELL"
-            mesaj = (
-                f"🔴 *OTOMATİK SAT SİNYALİ (SELL / SHORT)*\n"
-                f"📍 *Parite:* BTC/USDT (15m)\n\n"
-                f"🔸 *Giriş Fiyatı:* {anlik_fiyat} $\n"
-                f"🧱 *Direnç Bölgesi:* {direnc_seviyesi} $\n"
-                f"🎯 *Alt Hedef:* {destek_seviyesi} $\n\n"
-                f"⚡ *Aksiyon:* Fiyat dirence dayandı, kâr satışı veya short değerlendirilebilir."
-            )
-        else:
-            mevcut_durum = "NEUTRAL"
-            mesaj = (
-                f"🤖 *APEX | DURUM RAPORU*\n\n"
-                f"📍 *BTC Fiyatı:* {anlik_fiyat} $\n"
-                f"🛡️ *Destek:* {destek_seviyesi} $\n"
-                f"🧱 *Direnç:* {direnc_seviyesi} $\n\n"
-                f"⏳ *Durum:* Nötr. Fiyat aralıkta süzülüyor."
-            )
-        if mevcut_durum != son_sinyal_durumu or mevcut_durum in ["BUY", "SELL"]:
-            telegram_mesaj_gonder(mesaj)
-            son_sinyal_durumu = mevcut_durum
-            print(f"[{time.strftime('%H:%M:%S')}] Bildirim gönderildi: {mevcut_durum}")
-        else:
-            print(f"[{time.strftime('%H:%M:%S')}] Piyasa nötr, yeni bildirim atılmadı.")
-    except Exception as e:
-        print(f"Hata oluştu: {e}")
-    time.sleep(900)
 
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "SENIN_TELEGRAM_TOKENIN")
+CHAT_ID = os.environ.get("CHAT_ID", "SENIN_CHAT_IDN")
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"Telegram mesajı gönderilemedi: {e}")
+
+# Sepetimizdeki Coinler
+SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
+last_states = {symbol: None for symbol in SYMBOLS}
+
+def analyze_market():
+    exchange = ccxt.binance()
+    
+    for symbol in SYMBOLS:
+        try:
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=50)
+            closes = [x[4] for x in ohlcv]
+            current_price = closes[-1]
+            
+            # Basit Destek / Direnç Seviyeleri
+            support = min(closes[-20:])
+            resistance = max(closes[-20:])
+            
+            # Sinyal Durumu Belirleme
+            if current_price <= support * 1.002:
+                state = "BUY"
+            elif current_price >= resistance * 0.998:
+                state = "SELL"
+            else:
+                state = "NEUTRAL"
+            
+            # Sinyal değiştiğinde veya BUY/SELL durumunda bildirim at
+            if state != last_states[symbol] or state in ["BUY", "SELL"]:
+                last_states[symbol] = state
+                
+                emoji = "🟢" if state == "BUY" else "🔴" if state == "SELL" else "⏳"
+                msg = (
+                    f"🤖 *APEX | DURUM RAPORU*\n\n"
+                    f"📌 *Varlık:* {symbol}\n"
+                    f"💰 *Fiyat:* {current_price:.2f} $\n"
+                    f"🛡 *Destek:* {support:.2f} $\n"
+                    f"🎯 *Direnç:* {resistance:.2f} $\n\n"
+                    f"{emoji} *Durum:* {state}"
+                )
+                send_telegram(msg)
+                print(f"[{symbol}] Bildirim gönderildi: {state}")
+            else:
+                print(f"[{symbol}] Durum değişmedi ({state}), bildirim atılmadı.")
+                
+        except Exception as e:
+            print(f"{symbol} taranırken hata oluştu: {e}")
+
+def bot_loop():
+    send_telegram("🚀 *APEX | Sepet Tarama Modu Aktif!* (BTC, ETH, SOL)")
+    while True:
+        analyze_market()
+        time.sleep(900)  # 15 dakikada bir tarama yapar
+
+if __name__ == '__main__':
+    # Flask sunucusunu ayrı bir thred'de başlat
+    threading.Thread(target=run_flask).start()
+    # Bot döngüsünü başlat
+    bot_loop()

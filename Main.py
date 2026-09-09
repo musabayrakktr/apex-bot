@@ -15,7 +15,7 @@ crypto_cache = {
     "bitcoin": {"price": "78,168.00", "support": "77,952.20", "res": "79,401.00", "status": "Nötr."},
     "ethereum": {"price": "2,450.00", "support": "2,400.00", "res": "2,520.00", "status": "Nötr."},
     "solana": {"price": "145.00", "support": "140.00", "res": "150.00", "status": "Nötr."},
-    "dolar": {"price": "34.50", "status": "Serbest Piyasa / Döviz"},
+    "dolar": {"price": "34.50", "status": "Döviz"},
     "gram_altin": {"price": "3,050.00", "status": "Altın (Gram)"},
     "ceyrek_altin": {"price": "5,000.00", "status": "Altın (Çeyrek)"}
 }
@@ -41,7 +41,6 @@ def background_scanner():
     global crypto_cache
     while True:
         try:
-            # Kriptoları CoinCap'ten güncelliyoruz
             url = "https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=5) as response:
@@ -104,7 +103,7 @@ def telegram_webhook():
         return jsonify({"status": "success"}), 200
     except Exception as e:
         print(f"Telegram webhook hatası: {e}")
-        return jsonify({"status": "error"}}, 400
+        return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':
     t = threading.Thread(target=background_scanner, daemon=True)

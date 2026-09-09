@@ -35,15 +35,15 @@ def telegram_webhook():
             text = data["message"].get("text", "").strip().lower()
 
             if text in ["/btc", "btc"]:
-                price, support, res = get_binance_data('BTCUSDT')
+                price, support, res = get_coingecko_data('bitcoin')
                 reply = f"🪙 *Bitcoin (BTC) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/eth", "eth"]:
-                price, support, res = get_binance_data('ETHUSDT')
+                price, support, res = get_coingecko_data('ethereum')
                 reply = f"🪙 *Ethereum (ETH) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/sol", "sol"]:
-                price, support, res = get_binance_data('SOLUSDT')
+                price, support, res = get_coingecko_data('solana')
                 reply = f"🪙 *Solana (SOL) Anlık Durum*\n\n💵 Fiyat: `{price}`\n🛡 Destek: `{support}`\n🎯 Direnç: `{res}`"
                 send_telegram(reply, chat_id)
             elif text in ["/start", "/test"]:
@@ -54,17 +54,17 @@ def telegram_webhook():
         print(f"Telegram webhook hatası: {e}")
         return jsonify({"status": "error"}), 400
 
-def get_binance_data(symbol):
+def get_coingecko_data(coin_id):
     try:
-        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=15m&limit=30"
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=1"
         res = requests.get(url, timeout=5).json()
-        closes = [float(x[4]) for x in res]
-        current_price = f"{closes[-1]:,.2f}"
-        support = f"{min(closes[-20:]):,.2f}"
-        resistance = f"{max(closes[-20:]):,.2f}"
+        prices = [x[1] for x in res['prices']]
+        current_price = f"{prices[-1]:,.2f}"
+        support = f"{min(prices):,.2f}"
+        resistance = f"{max(prices):,.2f}"
         return current_price, support, resistance
     except Exception as e:
-        print(f"Binance API hatası: {e}")
+        print(f"API hatası: {e}")
         return "Veri alınamadı", "Veri alınamadı", "Veri alınamadı"
 
 if __name__ == '__main__':

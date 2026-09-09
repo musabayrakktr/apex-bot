@@ -8,8 +8,8 @@ import requests
 app = Flask(__name__)
 
 # Telegram Ayarları (Render Çevre Değişkenleri veya Varsayılan)
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
-CHAT_ID = os.environ.get("CHAT_ID", "")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "​8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc")
+CHAT_ID = os.environ.get("CHAT_ID", "​8982017587")
 
 def send_telegram(message):
     if not TELEGRAM_TOKEN or not CHAT_ID:

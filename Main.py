@@ -5,14 +5,17 @@ import threading
 import ccxt
 import requests
 
-# Flask Web Sunucusu
 app = Flask(__name__)
 
-# Telegram Ayarları
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "SENIN_TELEGRAM_TOKENIN")
-CHAT_ID = os.environ.get("CHAT_ID", "SENIN_CHAT_IDN")
+# Telegram Ayarları (Render Çevre Değişkenleri veya Varsayılan)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+CHAT_ID = os.environ.get("CHAT_ID", "")
 
 def send_telegram(message):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("HATA: TELEGRAM_TOKEN veya CHAT_ID eksik!")
+        return False
+    
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID, 
@@ -21,25 +24,37 @@ def send_telegram(message):
         "disable_web_page_preview": True
     }
     try:
-        requests.post(url, json=payload)
+        res = requests.post(url, json=payload)
+        print(f"Telegram Yanıtı: {res.status_code}")
+        return res.status_code == 200
     except Exception as e:
         print(f"Telegram mesajı gönderilemedi: {e}")
+        return False
 
 @app.route('/')
 def home():
     return "APEX Bot 7/24 Aktif!"
 
-# TradingView Webhook Alıcısı
-@app.route('/webhook', methods=['POST'])
+# YENİ TEST BUTONU: Tarayıcıdan girince anında Telegram'a mesaj atar!
+@app.route('/test')
+def test_msg():
+    success = send_telegram("🧪 *APEX | TEST BİLDİRİMİ*\n\nSistem kusursuz çalışıyor kanka! 🚀")
+    if success:
+        return "Test mesajı Telegram'a başarıyla gönderildi!"
+    else:
+        return "Mesaj gönderilemedi. Telegram Token veya Chat ID bilgilerini kontrol et!"
+
+# TradingView Webhook
+@app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     try:
-        data = request.json or request.data.decode('utf-8')
-        if isinstance(data, dict):
-            msg_text = data.get("message", str(data))
+        if request.method == 'POST':
+            data = request.json or request.data.decode('utf-8')
+            msg_text = data.get("message", str(data)) if isinstance(data, dict) else str(data)
         else:
-            msg_text = str(data)
-            
-        send_telegram(f"🚨 *TRADINGVIEW SİNYALİ GELDi!*\n-----------------------------------\n{msg_text}")
+            msg_text = "TradingView Test Bağlantısı Başarılı!"
+
+        send_telegram(f"🚨 *TRADINGVIEW SİNYALİ*\n-----------------------------------\n{msg_text}")
         return jsonify({"status": "success"}), 200
     except Exception as e:
         print(f"Webhook hatası: {e}")
@@ -49,7 +64,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# Sepetimizdeki Coinler (Arka plan taraması)
 SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 last_states = {symbol: None for symbol in SYMBOLS}
 
@@ -58,13 +72,11 @@ def format_price(val):
 
 def analyze_market():
     exchange = ccxt.binance()
-    
     for symbol in SYMBOLS:
         try:
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe='15m', limit=50)
             closes = [x[4] for x in ohlcv]
             current_price = closes[-1]
-            
             support = min(closes[-20:])
             resistance = max(closes[-20:])
             
@@ -102,12 +114,13 @@ def analyze_market():
                     f"-----------------------------------\n"
                     f"⏳ *Zaman Dilimi:* 15 Dakikalık"
                 )
-                
                 send_telegram(msg)
         except Exception as e:
             print(f"{symbol} hatası: {e}")
 
 def bot_loop():
+    # Başlangıçta bildirim gönder
+    send_telegram("🚀 *APEX BOT AKTİF!*\n-----------------------------------\nSepet: BTC, ETH, SOL taranıyor...")
     while True:
         analyze_market()
         time.sleep(900)

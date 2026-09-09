@@ -1,20 +1,12 @@
 import os
 import time
-from flask import Flask
+from flask import Flask, request, jsonify
 import threading
 import ccxt
 import requests
 
-# Flask Web Sunucusu (Render'ın kapanmaması için)
+# Flask Web Sunucusu
 app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "APEX Bot 7/24 Aktif!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
 
 # Telegram Ayarları
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "SENIN_TELEGRAM_TOKENIN")
@@ -33,7 +25,31 @@ def send_telegram(message):
     except Exception as e:
         print(f"Telegram mesajı gönderilemedi: {e}")
 
-# Sepetimizdeki Coinler
+@app.route('/')
+def home():
+    return "APEX Bot 7/24 Aktif!"
+
+# TradingView Webhook Alıcısı
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    try:
+        data = request.json or request.data.decode('utf-8')
+        if isinstance(data, dict):
+            msg_text = data.get("message", str(data))
+        else:
+            msg_text = str(data)
+            
+        send_telegram(f"🚨 *TRADINGVIEW SİNYALİ GELDi!*\n-----------------------------------\n{msg_text}")
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        print(f"Webhook hatası: {e}")
+        return jsonify({"status": "error"}), 400
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+# Sepetimizdeki Coinler (Arka plan taraması)
 SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
 last_states = {symbol: None for symbol in SYMBOLS}
 
@@ -52,7 +68,6 @@ def analyze_market():
             support = min(closes[-20:])
             resistance = max(closes[-20:])
             
-            # Sinyal Durumu Belirleme
             if current_price <= support * 1.002:
                 state = "BUY"
             elif current_price >= resistance * 0.998:
@@ -60,11 +75,9 @@ def analyze_market():
             else:
                 state = "NEUTRAL"
             
-            # Bildirim atma şartı
             if state != last_states[symbol] or state in ["BUY", "SELL"]:
                 last_states[symbol] = state
                 
-                # Görsel Durum Etiketleri
                 if state == "BUY":
                     status_header = "🚨 *ALIM SİNYALİ (BUY)*"
                     status_desc = "🟢 *Fiyat destekte! Tepki alımı gelebilir.*"
@@ -87,27 +100,14 @@ def analyze_market():
                     f"🎯 *Direnç:* `{format_price(resistance)} USDT`\n\n"
                     f"📍 *Analiz:* {status_desc}\n"
                     f"-----------------------------------\n"
-                    f"⏳ *Zaman Dilimi:* 15 Dakikalık | *Borsa:* Binance/OKX"
+                    f"⏳ *Zaman Dilimi:* 15 Dakikalık"
                 )
                 
                 send_telegram(msg)
-                print(f"[{symbol}] Şık bildirim gönderildi: {state}")
-            else:
-                print(f"[{symbol}] Durum değişmedi ({state}), bildirim atılmadı.")
-                
         except Exception as e:
-            print(f"{symbol} taranırken hata oluştu: {e}")
+            print(f"{symbol} hatası: {e}")
 
 def bot_loop():
-    welcome_msg = (
-        "🚀 *APEX BOT YENİDEN BAŞLATILDI*\n"
-        "-----------------------------------\n"
-        "📈 *Takip Edilen Sepet:* `BTC` | `ETH` | `SOL` \n"
-        "⚙️ *Mod:* Premium Sinyal Bildirimi\n"
-        "⏱ *Tarama Aralığı:* 15 Dakika"
-    )
-    send_telegram(welcome_msg)
-    
     while True:
         analyze_market()
         time.sleep(900)

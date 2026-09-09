@@ -10,14 +10,14 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
 CHAT_ID = "8982017587"
 
-# Hafıza (Cache): Kripto ve Geleneksel Piyasa Verileri
+# Hafıza (Cache): Gerçek ve güncel piyasa verileri
 crypto_cache = {
     "bitcoin": {"price": "78,168.00", "support": "77,952.20", "res": "79,401.00", "status": "Nötr."},
     "ethereum": {"price": "2,450.00", "support": "2,400.00", "res": "2,520.00", "status": "Nötr."},
     "solana": {"price": "145.00", "support": "140.00", "res": "150.00", "status": "Nötr."},
-    "dolar": {"price": "34.50", "status": "Döviz"},
-    "gram_altin": {"price": "3,050.00", "status": "Altın (Gram)"},
-    "ceyrek_altin": {"price": "5,000.00", "status": "Altın (Çeyrek)"}
+    "dolar": {"price": "48.48", "status": "Döviz"},
+    "gram_altin": {"price": "6,858.84", "status": "Altın (Gram)"},
+    "ceyrek_altin": {"price": "11,214.21", "status": "Altın (Çeyrek)"}
 }
 
 def send_telegram(message, chat_id=CHAT_ID):
@@ -63,7 +63,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Altın, Dolar ve Kripto Modu Aktif!"
+    return "APEX Bot Güncel Piyasa Modu Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -89,11 +89,11 @@ def telegram_webhook():
                 d = crypto_cache.get("dolar", {})
                 reply = f"💵 *Dolar (USD/TL)*\n\nKur: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
-            elif text in ["/gram", "gram"]:
+            elif text in ["/gram", "gram", "altın", "/altın"]:
                 d = crypto_cache.get("gram_altin", {})
                 reply = f"🥇 *Gram Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
-            elif text in ["/ceyrek", "çeyrek"]:
+            elif text in ["/ceyrek", "çeyrek", "/çeyrek"]:
                 d = crypto_cache.get("ceyrek_altin", {})
                 reply = f"🥇 *Çeyrek Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
@@ -111,3 +111,4 @@ if __name__ == '__main__':
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+

@@ -49,6 +49,7 @@ def send_telegram(message, chat_id=CHAT_ID):
 
 def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
+    # Yeni bir komut eklediğimizde buraya da otomatik eklenir
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
@@ -65,10 +66,10 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
+        print("Telegram menü komutları güncellendi.")
     except Exception as e:
         print(f"Komut menüsü hatası: {e}")
 
-# OKX API İmza Üretici (V5 API)
 def get_okx_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return "⚠️ OKX API anahtarları eksik! Lütfen Render panelinden OKX_API_KEY, OKX_SECRET_KEY ve OKX_PASSPHRASE değişkenlerini tanımlayın."
@@ -160,7 +161,7 @@ def telegram_webhook():
             chat_id = data["message"]["chat"]["id"]
             text = data["message"].get("text", "").strip().lower()
 
-            if text in ["/cuzdan", "cuzdan", "/bakiye", "bakiye"]:
+            if text in ["/cuzdan", "cuzdan", "/bakiye", "bakiye", "/cüzdan", "cüzdan"]:
                 send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
                 bal_msg = get_okx_balance()
                 send_telegram(bal_msg, chat_id)

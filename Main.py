@@ -65,7 +65,7 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
-        print("Telegram menü komutları başarıyla güncellendi.")
+        print("Telegram menü komutları güncellendi.")
     except Exception as e:
         print(f"Komut menüsü hatası: {e}")
 
@@ -85,11 +85,11 @@ def get_okx_balance():
         "OK-ACCESS-SIGN": sign,
         "OK-ACCESS-TIMESTAMP": timestamp,
         "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    # OKX TR için uç nokta adresi
-    url = f"https://www.tr.okx.com{request_path}"
+    url = f"https://www.okx.com{request_path}"
     req = urllib.request.Request(url, headers=headers)
     
     try:
@@ -100,7 +100,7 @@ def get_okx_balance():
                 if not details:
                     return "💼 *OKX Cüzdanınızda kullanılabilir bakiye bulunamadı.*"
                 
-                msg = "💼 *OKX TR CÜZDAN BAKİYESİ*\n\n"
+                msg = "💼 *OKX CÜZDAN BAKİYESİ*\n\n"
                 for coin in details:
                     ccy = coin.get("ccy")
                     bal = float(coin.get("eq", "0"))
@@ -111,28 +111,7 @@ def get_okx_balance():
             else:
                 return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
     except Exception as e:
-        # TR adresi yanıt vermezse standart globale düşme mekanizması
-        try:
-            url_global = f"https://www.okx.com{request_path}"
-            req_g = urllib.request.Request(url_global, headers=headers)
-            with urllib.request.urlopen(req_g, timeout=10) as response_g:
-                res = json.loads(response_g.read().decode())
-                if res.get("code") == "0" and res.get("data"):
-                    details = res["data"][0].get("details", [])
-                    if not details:
-                        return "💼 *OKX Cüzdanınızda kullanılabilir bakiye bulunamadı.*"
-                    msg = "💼 *OKX CÜZDAN BAKİYESİ*\n\n"
-                    for coin in details:
-                        ccy = coin.get("ccy")
-                        bal = float(coin.get("eq", "0"))
-                        avail = float(coin.get("availBal", "0"))
-                        if bal > 0:
-                            msg += f"🪙 *{ccy}*: `{bal:.4f}` (Kullanılabilir: `{avail:.4f}`)\n"
-                    return msg
-                else:
-                    return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
-        except Exception as ex:
-            return f"❌ OKX Bağlantı Hatası: {ex}"
+        return f"❌ OKX Bağlantı Hatası: {e}"
 
 def background_scanner():
     global crypto_cache, last_alerts

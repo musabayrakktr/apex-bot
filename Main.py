@@ -180,23 +180,31 @@ def fetch_live_data():
             crypto_cache[coin]["price"] = f"{p:,.2f}"
             crypto_cache[coin]["rsi"] = rsi
 
-    # Canlı Türkiye Piyasa Verisi (Dolar & Altın)
+    # Kesintisiz Canlı Türkiye Piyasa Kurları
     try:
-        url_genelpara = "https://api.genelpara.com/embed/altin.json"
-        req_g = urllib.request.Request(url_genelpara, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req_g, timeout=5) as resp:
+        url_piyasa = "https://hasanabbas.com/api/doviz"
+        req = urllib.request.Request(url_piyasa, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode())
-            
-            if "USD" in data and "satis" in data["USD"]:
-                usd_val = float(data["USD"]["satis"])
+            if "USD" in data:
+                usd_val = float(data["USD"])
                 crypto_cache["dolar"]["price"] = f"{usd_val:.2f}"
-
-            if "GA" in data and "satis" in data["GA"]:
-                gram_val = float(data["GA"]["satis"])
+            if "GA" in data:
+                gram_val = float(data["GA"])
                 crypto_cache["gram_altin"]["price"] = f"{gram_val:,.2f}"
                 crypto_cache["ceyrek_altin"]["price"] = f"{(gram_val * 1.635):,.2f}"
-    except Exception as e:
-        print(f"Canlı Piyasa Hatası: {e}")
+    except Exception:
+        # Yedek Servis (Dünya Döviz Servisi)
+        try:
+            url_backup = "https://open.er-api.com/v6/latest/USD"
+            req_b = urllib.request.Request(url_backup, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req_b, timeout=5) as resp_b:
+                data_b = json.loads(resp_b.read().decode())
+                try_rate = data_b['rates'].get('TRY', 0)
+                if try_rate > 0:
+                    crypto_cache["dolar"]["price"] = f"{try_rate:.2f}"
+        except Exception as e:
+            print(f"Döviz Yedek Hatası: {e}")
 
 def calculate_precision_signal(rsi_val):
     if rsi_val <= 30:
@@ -541,7 +549,7 @@ def telegram_webhook():
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Canlı Türkiye piyasa kurları devrede.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Garantili piyasa servisi devrede.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

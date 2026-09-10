@@ -33,7 +33,6 @@ last_alert_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 last_trade_state = {"bitcoin": "NEUTRAL", "ethereum": "NEUTRAL", "solana": "NEUTRAL"}
 last_signal_state = {"bitcoin": "⚪ BEKLE", "ethereum": "⚪ BEKLE", "solana": "⚪ BEKLE"}
 
-# Hata spam'ini önlemek için son hata bildirim zamanı
 last_error_notify_time = {"bitcoin": 0, "ethereum": 0, "solana": 0}
 
 custom_target_alerts = {}
@@ -62,8 +61,8 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
-        {"command": "stop", "description": "Otomatik Al-Sat Motorunu Durdur"},
-        {"command": "baslat", "description": "Otomatik Al-Sat Motorunu Başlat"},
+        {"command": "stop", "description": "Otomatik Emir Alımını Durdur"},
+        {"command": "baslat", "description": "Otomatik Emir Alımını Başlat"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
         {"command": "analiz", "description": "Akıllı RSI & Oto-Trade Raporu"},
         {"command": "alarmlar", "description": "Aktif Özel Fiyat Alarmları"},
@@ -181,25 +180,23 @@ def fetch_live_data():
             crypto_cache[coin]["price"] = f"{p:,.2f}"
             crypto_cache[coin]["rsi"] = rsi
 
+    # Canlı Türkiye Piyasa Verisi (Dolar & Altın)
     try:
-        url = "https://api.exchangerate-api.com/v4/latest/USD"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as response:
-            res = json.loads(response.read().decode())
-            try_rate = res['rates'].get('TRY', 0)
-            if try_rate > 0:
-                crypto_cache["dolar"]["price"] = f"{try_rate:.2f}"
-                gold_url = "https://api.gold-api.com/price/XAU"
-                req_gold = urllib.request.Request(gold_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req_gold, timeout=5) as resp_gold:
-                    res_g = json.loads(resp_gold.read().decode())
-                    price_ons = float(res_g.get("price", 0))
-                    if price_ons > 0:
-                        gram = (price_ons / 31.1034768) * try_rate
-                        crypto_cache["gram_altin"]["price"] = f"{gram:,.2f}"
-                        crypto_cache["ceyrek_altin"]["price"] = f"{(gram * 1.635):,.2f}"
+        url_genelpara = "https://api.genelpara.com/embed/altin.json"
+        req_g = urllib.request.Request(url_genelpara, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req_g, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            
+            if "USD" in data and "satis" in data["USD"]:
+                usd_val = float(data["USD"]["satis"])
+                crypto_cache["dolar"]["price"] = f"{usd_val:.2f}"
+
+            if "GA" in data and "satis" in data["GA"]:
+                gram_val = float(data["GA"]["satis"])
+                crypto_cache["gram_altin"]["price"] = f"{gram_val:,.2f}"
+                crypto_cache["ceyrek_altin"]["price"] = f"{(gram_val * 1.635):,.2f}"
     except Exception as e:
-        print(f"Döviz/Altın hatası: {e}")
+        print(f"Canlı Piyasa Hatası: {e}")
 
 def calculate_precision_signal(rsi_val):
     if rsi_val <= 30:
@@ -274,7 +271,6 @@ def check_auto_trade_signals():
                     f"💳 **Emir Notu:** `{msg}`"
                 )
             else:
-                # 15 dakikada (900 sn) en fazla 1 defa hata bildirimi at (Spam Önleme)
                 if now - last_error_notify_time[coin] > 900:
                     last_error_notify_time[coin] = now
                     send_telegram(
@@ -545,7 +541,7 @@ def telegram_webhook():
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* /stop ve /baslat kontrol sistemi aktif.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Canlı Türkiye piyasa kurları devrede.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

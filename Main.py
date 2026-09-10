@@ -20,6 +20,10 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 AUTO_TRADE_ENABLED = True
 
+# Ticaret Stratejisi Ayarları
+STOP_LOSS_PCT = 0.02    # %2 Zarar Kes
+TAKE_PROFIT_PCT = 0.03  # %3 Kâr Al
+
 crypto_cache = {
     "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0},
     "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0},
@@ -31,22 +35,27 @@ crypto_cache = {
 
 last_alert_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 last_trade_state = {"bitcoin": "NEUTRAL", "ethereum": "NEUTRAL", "solana": "NEUTRAL"}
+buy_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 last_signal_state = {"bitcoin": "⚪ BEKLE", "ethereum": "⚪ BEKLE", "solana": "⚪ BEKLE"}
 
-last_error_notify_time = {"bitcoin": 0, "ethereum": 0, "solana": 0}
+# Günlük Kâr İstatistikleri
+daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
+last_daily_report_date = ""
 
+last_error_notify_time = {"bitcoin": 0, "ethereum": 0, "solana": 0}
 custom_target_alerts = {}
 
 last_report_time = time.time()
 REPORT_INTERVAL = 900  # 15 dakika
 
-def send_telegram(message, chat_id=CHAT_ID):
+def send_telegram(message, chat_id=CHAT_ID, disable_notification=False):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": message,
         "parse_mode": "Markdown",
-        "disable_web_page_preview": True
+        "disable_web_page_preview": True,
+        "disable_notification": disable_notification
     }
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
@@ -65,6 +74,7 @@ def set_telegram_commands():
         {"command": "baslat", "description": "Otomatik Emir Alımını Başlat"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
         {"command": "analiz", "description": "Akıllı RSI & Oto-Trade Raporu"},
+        {"command": "rapor", "description": "Günlük Performans Özeti"},
         {"command": "alarmlar", "description": "Aktif Özel Fiyat Alarmları"},
         {"command": "btc", "description": "Bitcoin anlık durum"},
         {"command": "eth", "description": "Ethereum anlık durum"},
@@ -180,31 +190,22 @@ def fetch_live_data():
             crypto_cache[coin]["price"] = f"{p:,.2f}"
             crypto_cache[coin]["rsi"] = rsi
 
-    # Kesintisiz Canlı Türkiye Piyasa Kurları
     try:
-        url_piyasa = "https://hasanabbas.com/api/doviz"
-        req = urllib.request.Request(url_piyasa, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            if "USD" in data:
-                usd_val = float(data["USD"])
-                crypto_cache["dolar"]["price"] = f"{usd_val:.2f}"
-            if "GA" in data:
-                gram_val = float(data["GA"])
-                crypto_cache["gram_altin"]["price"] = f"{gram_val:,.2f}"
-                crypto_cache["ceyrek_altin"]["price"] = f"{(gram_val * 1.635):,.2f}"
-    except Exception:
-        # Yedek Servis (Dünya Döviz Servisi)
-        try:
-            url_backup = "https://open.er-api.com/v6/latest/USD"
-            req_b = urllib.request.Request(url_backup, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req_b, timeout=5) as resp_b:
-                data_b = json.loads(resp_b.read().decode())
-                try_rate = data_b['rates'].get('TRY', 0)
-                if try_rate > 0:
-                    crypto_cache["dolar"]["price"] = f"{try_rate:.2f}"
-        except Exception as e:
-            print(f"Döviz Yedek Hatası: {e}")
+        usdt_p, _ = fetch_okx_ticker_and_rsi("USDT-TRY")
+        if usdt_p > 0:
+            crypto_cache["dolar"]["price"] = f"{usdt_p:.2f}"
+            
+            url_gold = "https://api.gold-api.com/price/XAU"
+            req_gold = urllib.request.Request(url_gold, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req_gold, timeout=5) as resp_gold:
+                res_g = json.loads(resp_gold.read().decode())
+                price_ons = float(res_g.get("price", 0))
+                if price_ons > 0:
+                    gram = (price_ons / 31.1034768) * usdt_p
+                    crypto_cache["gram_altin"]["price"] = f"{gram:,.2f}"
+                    crypto_cache["ceyrek_altin"]["price"] = f"{(gram * 1.635):,.2f}"
+    except Exception as e:
+        print(f"Borsa Kur Hatası: {e}")
 
 def calculate_precision_signal(rsi_val):
     if rsi_val <= 30:
@@ -217,6 +218,110 @@ def calculate_precision_signal(rsi_val):
         return "🟡 KÂR REALİZASYONU YAKIN", "🟡 İZLE / SAT"
     else:
         return "⚪ NÖTR (Sermaye Koruma Modu)", "⚪ BEKLE"
+
+def check_auto_trade_signals():
+    global last_trade_state, buy_prices, last_error_notify_time, daily_stats
+    if not AUTO_TRADE_ENABLED:
+        return
+
+    now = time.time()
+    for coin in ["bitcoin", "ethereum", "solana"]:
+        rsi = crypto_cache[coin]["rsi"]
+        curr_p = crypto_cache[coin]["price_num"]
+        inst_id = crypto_cache[coin]["inst_id"]
+        
+        # 1. RSI DIP ALIM
+        if rsi <= 30 and last_trade_state[coin] != "BOUGHT":
+            success, msg = execute_okx_order(inst_id, "buy", sz="1")
+            if success:
+                last_trade_state[coin] = "BOUGHT"
+                buy_prices[coin] = curr_p
+                # Yüksek Sesli Yönlendirici Bildirim (disable_notification=False)
+                send_telegram(
+                    f"🚨 *MÜKEMMEL DİP YAKALANDI! ({coin.upper()})*\n\n"
+                    f"🟢 **Sebep:** RSI Aşırı Satım ({rsi} <= 30)\n"
+                    f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"🛡️ **Stop-Loss:** `%{STOP_LOSS_PCT*100:.0f}` | 🎯 **Take-Profit:** `%{TAKE_PROFIT_PCT*100:.0f}`",
+                    disable_notification=False
+                )
+            else:
+                if now - last_error_notify_time[coin] > 900:
+                    last_error_notify_time[coin] = now
+                    send_telegram(
+                        f"⚠️ *Otomatik Alım Başarısız ({coin.upper()}):* `{msg}`\n\n"
+                        f"💡 *Not:* Hesabınızda USDT bakiyesi olmayabilir. Durdurmak için /stop yazabilirsiniz."
+                    )
+
+        # Pozisyondaysak: Stop-Loss, Take-Profit veya RSI Tepe Kontrolü
+        elif last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
+            entry_p = buy_prices[coin]
+            pnl_pct = (curr_p - entry_p) / entry_p
+
+            # 2. STOP-LOSS (Zarar Kes)
+            if pnl_pct <= -STOP_LOSS_PCT:
+                success, msg = execute_okx_order(inst_id, "sell", sz="1")
+                if success:
+                    last_trade_state[coin] = "NEUTRAL"
+                    daily_stats["total_trades"] += 1
+                    daily_stats["total_profit_pct"] += pnl_pct
+                    send_telegram(
+                        f"🛑 *STOP-LOSS TETİKLENDİ ({coin.upper()})*\n\n"
+                        f"📉 **Değişim:** `%{pnl_pct*100:.2f}`\n"
+                        f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                        f"🛡️ Sermaye koruması için pozisyon kapatıldı.",
+                        disable_notification=False
+                    )
+
+            # 3. TAKE-PROFIT (Kâr Al)
+            elif pnl_pct >= TAKE_PROFIT_PCT:
+                success, msg = execute_okx_order(inst_id, "sell", sz="1")
+                if success:
+                    last_trade_state[coin] = "NEUTRAL"
+                    daily_stats["total_trades"] += 1
+                    daily_stats["successful_trades"] += 1
+                    daily_stats["total_profit_pct"] += pnl_pct
+                    send_telegram(
+                        f"🎯 *TAKE-PROFIT HEDEFİ ULAŞILDI! ({coin.upper()})*\n\n"
+                        f"🚀 **Kâr:** `+%{pnl_pct*100:.2f}`\n"
+                        f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                        f"💰 Kâr kilitlendi, tebrikler patron!",
+                        disable_notification=False
+                    )
+
+            # 4. RSI TEPESİ (RSI >= 70)
+            elif rsi >= 70:
+                success, msg = execute_okx_order(inst_id, "sell", sz="1")
+                if success:
+                    last_trade_state[coin] = "NEUTRAL"
+                    daily_stats["total_trades"] += 1
+                    if pnl_pct > 0: daily_stats["successful_trades"] += 1
+                    daily_stats["total_profit_pct"] += pnl_pct
+                    send_telegram(
+                        f"🤖 *RSI TEPESİ SATIŞI ({coin.upper()})*\n\n"
+                        f"🔴 **Sebep:** RSI Tepesi ({rsi} >= 70)\n"
+                        f"📊 **Sonuç:** `%{pnl_pct*100:.2f}`\n"
+                        f"💰 Kâr kilitlendi.",
+                        disable_notification=False
+                    )
+
+def check_daily_report_schedule():
+    global last_daily_report_date, daily_stats
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    current_hour = datetime.now().hour
+    
+    # Her gece saat 00:00 - 01:00 arası günlük özet raporu atar
+    if current_hour == 0 and last_daily_report_date != today_str:
+        last_daily_report_date = today_str
+        report = (
+            "📊 *APEX BOT GÜNLÜK PERFORMANS RAPORU*\n\n"
+            f"🔄 **Toplam İşlem Sayısı:** `{daily_stats['total_trades']}`\n"
+            f"✅ **Başarılı İşlemler:** `{daily_stats['successful_trades']}`\n"
+            f"📈 **Toplam Oransal Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`\n\n"
+            f"💡 *Sistem yarın için tetikte beklemeye devam ediyor!*"
+        )
+        send_telegram(report, disable_notification=False)
+        # Yeni gün için istatistikleri sıfırla
+        daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
 
 def check_signal_change_alerts():
     global last_signal_state
@@ -234,68 +339,28 @@ def check_signal_change_alerts():
                     f"📡 **Eski Sinyal:** `{previous_sig}`\n"
                     f"🎯 **Yeni Sinyal:** *{current_sig}*\n"
                     f"📊 **Anlık Fiyat:** `{curr_p}` $\n"
-                    f"📈 **Canlı RSI:** `{rsi}`\n\n"
-                    f"💡 *Öneri:* Stratejine göre pozisyon alabilirsin kanka."
+                    f"📈 **Canlı RSI:** `{rsi}`",
+                    disable_notification=False
                 )
 
 def check_custom_price_alerts():
     global custom_target_alerts
     for coin_id, targets in list(custom_target_alerts.items()):
         curr_p = crypto_cache[coin_id]["price_num"]
-        if curr_p == 0.0:
-            continue
+        if curr_p == 0.0: continue
         
         for target_p in list(targets):
             if curr_p >= target_p:
                 send_telegram(
                     f"🎯 *HEDEF FİYAT ALARMI TETİKLENDİ! ({coin_id.upper()})*\n\n"
                     f"🚀 *Anlık Fiyat:* `{curr_p:,.2f}` $\n"
-                    f"📌 *Kurulan Hedef:* `{target_p:,.2f}` $\n"
-                    f"💡 *Sinyal:* Hedef seviyeye ulaşıldı, pozisyonunuzu kontrol edin!"
+                    f"📌 *Kurulan Hedef:* `{target_p:,.2f}` $",
+                    disable_notification=False
                 )
                 targets.remove(target_p)
                 
         if not targets:
             del custom_target_alerts[coin_id]
-
-def check_auto_trade_signals():
-    global last_trade_state, last_error_notify_time
-    if not AUTO_TRADE_ENABLED:
-        return
-
-    now = time.time()
-    for coin in ["bitcoin", "ethereum", "solana"]:
-        rsi = crypto_cache[coin]["rsi"]
-        inst_id = crypto_cache[coin]["inst_id"]
-        
-        if rsi <= 30 and last_trade_state[coin] != "BOUGHT":
-            success, msg = execute_okx_order(inst_id, "buy", sz="1")
-            if success:
-                last_trade_state[coin] = "BOUGHT"
-                send_telegram(
-                    f"🤖 *OTOMATİK ALIM GERÇEKLEŞTİ! ({coin.upper()})*\n\n"
-                    f"🟢 **Sebep:** RSI Dibi ({rsi} <= 30)\n"
-                    f"🪙 **Parite:** `{inst_id}`\n"
-                    f"💳 **Emir Notu:** `{msg}`"
-                )
-            else:
-                if now - last_error_notify_time[coin] > 900:
-                    last_error_notify_time[coin] = now
-                    send_telegram(
-                        f"⚠️ *Otomatik Alım Başarısız ({coin.upper()}):* `{msg}`\n\n"
-                        f"💡 *Not:* Hesabınızda USDT bakiyesi olmayabilir. Durdurmak için /stop yazabilirsiniz."
-                    )
-
-        elif rsi >= 70 and last_trade_state[coin] == "BOUGHT":
-            success, msg = execute_okx_order(inst_id, "sell", sz="1")
-            if success:
-                last_trade_state[coin] = "NEUTRAL"
-                send_telegram(
-                    f"🤖 *OTOMATİK SATIŞ GERÇEKLEŞTİ! ({coin.upper()})*\n\n"
-                    f"🔴 **Sebep:** RSI Tepesi ({rsi} >= 70)\n"
-                    f"🪙 **Parite:** `{inst_id}`\n"
-                    f"💰 **Emir Notu:** Kâr kilitlendi. ({msg})"
-                )
 
 def check_instant_movement():
     global last_alert_prices
@@ -315,16 +380,16 @@ def check_instant_movement():
                 send_telegram(
                     f"🚀 *SATIŞ / KÂR AL SİNYALİ! ({coin_id.upper()})*\n\n"
                     f"📈 *Fiyat Sıçraması:* `{curr_p:,.2f}` $\n"
-                    f"⚡ *Değişim:* `+{change_pct:.2f}%`\n"
-                    f"💡 *Öneri:* Kâr kilitleniyor, kademeli satış düşünülebilir."
+                    f"⚡ *Değişim:* `+{change_pct:.2f}%`",
+                    disable_notification=False
                 )
             elif change_pct <= -1.5:
                 last_alert_prices[coin_id] = curr_p
                 send_telegram(
                     f"🛡️ *SERMAYE KORUMA / DIP ALARMI! ({coin_id.upper()})*\n\n"
                     f"📉 *Fiyat Düşüşü:* `{curr_p:,.2f}` $\n"
-                    f"⚡ *Değişim:* `{change_pct:.2f}%`\n"
-                    f"💡 *Öneri:* Stop-Loss koruması aktif. Dip alım fırsatı değerlendirilebilir."
+                    f"⚡ *Değişim:* `{change_pct:.2f}%`",
+                    disable_notification=False
                 )
 
 def get_okx_balance():
@@ -417,12 +482,14 @@ def background_scanner():
             check_instant_movement()
             check_signal_change_alerts()
             check_custom_price_alerts()
+            check_daily_report_schedule()
 
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
                 last_report_time = now
                 report = generate_market_report()
-                send_telegram(report)
+                # 15 dakikalık periyodik raporları sessiz (bildirim sesi çıkarmadan) gönderir
+                send_telegram(report, disable_notification=True)
         except Exception as e:
             print(f"Tarama hatası: {e}")
         
@@ -454,6 +521,7 @@ def telegram_webhook():
                     "▶️ /baslat - Otomatik Emir Alımını Başlat\n"
                     "💼 /cuzdan - OKX TR Cüzdan Bakiyesi\n"
                     "📈 /analiz - Akıllı RSI & Oto-Trade Raporu\n"
+                    "📊 /rapor - Günlük Performans Özeti\n"
                     "🔔 /alarmlar - Kurulu Hedef Fiyat Alarmları\n\n"
                     "🎯 *Alarm Kurma Örnekleri:*\n"
                     "👉 `/alarm btc 80000` (BTC 80k $ olunca uyarır)\n"
@@ -468,11 +536,20 @@ def telegram_webhook():
 
             elif text in ["/stop", "stop"]:
                 AUTO_TRADE_ENABLED = False
-                send_telegram("🛑 *OTOMATİK EMİR MOTORU DURDURULDU!*\n\nBot artık otomatik al-sat yapmayacak, sadece piyasa analiz ve alarm bildirimlerini gönderecektir.", chat_id)
+                send_telegram("🛑 *OTOMATİK EMİR MOTORU DURDURULDU!*", chat_id)
 
             elif text in ["/baslat", "baslat"]:
                 AUTO_TRADE_ENABLED = True
-                send_telegram("▶️ *OTOMATİK EMİR MOTORU BAŞLATILDI!*\n\nBot RSI dip/tepe noktalarında OKX üzerinde otomatik işlem yapmaya hazırdır.", chat_id)
+                send_telegram("▶️ *OTOMATİK EMİR MOTORU BAŞLATILDI!*", chat_id)
+
+            elif text in ["/rapor", "rapor"]:
+                report = (
+                    "📊 *APEX BOT GÜNLÜK PERFORMANS RAPORU*\n\n"
+                    f"🔄 **Toplam İşlem Sayısı:** `{daily_stats['total_trades']}`\n"
+                    f"✅ **Başarılı İşlemler:** `{daily_stats['successful_trades']}`\n"
+                    f"📈 **Toplam Oransal Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`"
+                )
+                send_telegram(report, chat_id)
 
             elif text.startswith("/alarm "):
                 parts = raw_text.split()
@@ -488,41 +565,9 @@ def telegram_webhook():
                             if coin_key not in custom_target_alerts:
                                 custom_target_alerts[coin_key] = []
                             custom_target_alerts[coin_key].append(target_price)
-                            send_telegram(
-                                f"✅ *Özel Hedef Alarmı Kuruldu!*\n\n"
-                                f"🪙 **Coin:** `{coin_key.upper()}`\n"
-                                f"🎯 **Hedef Fiyat:** `{target_price:,.2f}` $\n"
-                                f"📊 **Anlık Fiyat:** `{crypto_cache[coin_key]['price']}` $"
-                            )
-                        else:
-                            send_telegram("⚠️ Sadece BTC, ETH ve SOL için alarm kurabilirsiniz.")
+                            send_telegram(f"✅ *Özel Hedef Alarmı Kuruldu! ({coin_key.upper()} - {target_price:,.2f} $)*", chat_id)
                     except ValueError:
-                        send_telegram("⚠️ Geçersiz fiyat formatı. Örnek: `/alarm btc 80000`")
-                else:
-                    send_telegram("⚠️ Yanlış kullanım. Örnek: `/alarm btc 80000`")
-
-            elif text in ["/alarmlar", "alarmlar"]:
-                if not custom_target_alerts:
-                    send_telegram("🔔 *Kurulu aktif bir hedef fiyat alarmınız yok.*")
-                else:
-                    msg = "🔔 *AKTİF HEDEF FİYAT ALARMLARI*\n\n"
-                    for c_id, t_list in custom_target_alerts.items():
-                        msg += f"🪙 *{c_id.upper()}*: {', '.join([f'`{p:,.2f} $`' for p in t_list])}\n"
-                    send_telegram(msg)
-
-            elif text.startswith("/alarmsil"):
-                parts = raw_text.split()
-                if len(parts) == 2:
-                    coin_key = parts[1].lower()
-                    if coin_key in ["btc", "bitcoin"]: coin_key = "bitcoin"
-                    elif coin_key in ["eth", "ethereum"]: coin_key = "ethereum"
-                    elif coin_key in ["sol", "solana"]: coin_key = "solana"
-                    
-                    if coin_key in custom_target_alerts:
-                        del custom_target_alerts[coin_key]
-                        send_telegram(f"🗑️ *{coin_key.upper()} alarmları temizlendi.*")
-                    else:
-                        send_telegram(f"⚠️ *{coin_key.upper()}* için kurulu alarm bulunamadı.")
+                        send_telegram("⚠️ Geçersiz fiyat formatı.", chat_id)
 
             elif text in ["/cuzdan", "cuzdan", "/bakiye"]:
                 send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
@@ -542,14 +587,14 @@ def telegram_webhook():
                 _, sig = calculate_precision_signal(rsi)
                 send_telegram(f"🪙 *Solana (SOL)*: `{crypto_cache['solana']['price']}` $\nRSI: `{rsi}` | Sinyal: *{sig}*", chat_id)
             elif text in ["/dolar", "dolar"]:
-                send_telegram(f"💵 *Canlı Dolar (USD/TL)*: `{crypto_cache['dolar']['price']}` TL", chat_id)
+                send_telegram(f"💵 *Canlı Dolar (OKX USDT/TRY)*: `{crypto_cache['dolar']['price']}` TL", chat_id)
             elif text in ["/gram", "gram"]:
                 send_telegram(f"🥇 *Gram Altın*: `{crypto_cache['gram_altin']['price']}` TL", chat_id)
             elif text in ["/ceyrek", "çeyrek"]:
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Garantili piyasa servisi devrede.", chat_id)
+                send_telegram("✅ *Tüm Gelişmiş Özellikler Aktif!*", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

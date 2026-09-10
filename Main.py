@@ -18,7 +18,7 @@ OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
-AUTO_TRADE_ENABLED = True  # Otomatik Al-Sat Modu
+AUTO_TRADE_ENABLED = True
 
 crypto_cache = {
     "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0},
@@ -31,6 +31,9 @@ crypto_cache = {
 
 last_alert_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 last_trade_state = {"bitcoin": "NEUTRAL", "ethereum": "NEUTRAL", "solana": "NEUTRAL"}
+
+# Özel Fiyat Alarmları Sözlüğü {"bitcoin": [80000.0, 75000.0]}
+custom_target_alerts = {}
 
 last_report_time = time.time()
 REPORT_INTERVAL = 900  # 15 dakika
@@ -57,7 +60,8 @@ def set_telegram_commands():
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
-        {"command": "analiz", "description": "Gerçek RSI & Canlı Sinyal Analizi"},
+        {"command": "analiz", "description": "Akıllı RSI & Oto-Trade Raporu"},
+        {"command": "alarmlar", "description": "Aktif Özel Fiyat Alarmları"},
         {"command": "btc", "description": "Bitcoin anlık durum"},
         {"command": "eth", "description": "Ethereum anlık durum"},
         {"command": "sol", "description": "Solana anlık durum"},
@@ -203,6 +207,28 @@ def calculate_precision_signal(rsi_val):
         return "🟡 KÂR REALİZASYONU YAKIN", "🟡 İZLE / SAT"
     else:
         return "⚪ NÖTR (Sermaye Koruma Modu)", "⚪ BEKLE"
+
+def check_custom_price_alerts():
+    """Kullanıcının Kurduğu Özel Hedef Fiyat Alarmlarını Denetler"""
+    global custom_target_alerts
+    for coin_id, targets in list(custom_target_alerts.items()):
+        curr_p = crypto_cache[coin_id]["price_num"]
+        if curr_p == 0.0:
+            continue
+        
+        for target_p in list(targets):
+            # Hedef fiyata ulaşılma veya geçilme kontrolü
+            if curr_p >= target_p:
+                send_telegram(
+                    f"🎯 *HEDEF FİYAT ALARMI TETİKLENDİ! ({coin_id.upper()})*\n\n"
+                    f"🚀 *Anlık Fiyat:* `{curr_p:,.2f}` $\n"
+                    f"📌 *Kurulan Hedef:* `{target_p:,.2f}` $\n"
+                    f"💡 *Sinyal:* Hedef seviyeye ulaşıldı, pozisyonunuzu kontrol edin!"
+                )
+                targets.remove(target_p)
+                
+        if not targets:
+            del custom_target_alerts[coin_id]
 
 def check_auto_trade_signals():
     global last_trade_state
@@ -353,6 +379,7 @@ def background_scanner():
             fetch_live_data()
             check_auto_trade_signals()
             check_instant_movement()
+            check_custom_price_alerts()  # Özel hedef alarmlarını tara
 
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
@@ -366,16 +393,17 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Otomatik Al-Sat & Risk Yönetim Motoru Aktif!"
+    return "APEX Hedef Fiyat Alarm & Oto-Trade Motoru Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
-    global last_report_time
+    global last_report_time, custom_target_alerts
     try:
         data = request.json
         if "message" in data:
             chat_id = data["message"]["chat"]["id"]
-            text = data["message"].get("text", "").strip().lower()
+            raw_text = data["message"].get("text", "").strip()
+            text = raw_text.lower()
 
             fetch_live_data()
 
@@ -383,16 +411,72 @@ def telegram_webhook():
                 set_telegram_commands()
                 start_msg = (
                     "🤖 *APEX OTO-TRADING BOT DEVREDE!*\n\n"
-                    "Hoş geldin patron! Sistem hem canlı RSI ve fiyat takibi yapar hem de OKX'te otomatik alım/satım işlemlerini yürütür.\n\n"
+                    "Hoş geldin patron! Sistem canlı RSI, otomatik borsa emri ve özel hedef fiyat alarmlarını yönetir.\n\n"
                     "📌 *Hızlı Komutlar:*\n"
                     "💼 /cuzdan - OKX TR Cüzdan Bakiyesi\n"
-                    "📈 /analiz - Akıllı RSI & Oto-Trade Raporu\n\n"
+                    "📈 /analiz - Akıllı RSI & Oto-Trade Raporu\n"
+                    "🔔 /alarmlar - Kurulu Hedef Fiyat Alarmları\n\n"
+                    "🎯 *Alarm Kurma Örnekleri:*\n"
+                    "👉 `/alarm btc 80000` (BTC 80k $ olunca uyarır)\n"
+                    "👉 `/alarm sol 120` (SOL 120 $ olunca uyarır)\n"
+                    "👉 `/alarmsil btc` (BTC alarmlarını temizler)\n\n"
                     "🪙 *Kripto:*\n"
                     "👉 /btc | /eth | /sol\n\n"
                     "💵 *Piyasa:*\n"
                     "👉 /dolar | /gram | /ceyrek"
                 )
                 send_telegram(start_msg, chat_id)
+
+            elif text.startswith("/alarm "):
+                parts = raw_text.split()
+                if len(parts) == 3:
+                    coin_key = parts[1].lower()
+                    if coin_key in ["btc", "bitcoin"]: coin_key = "bitcoin"
+                    elif coin_key in ["eth", "ethereum"]: coin_key = "ethereum"
+                    elif coin_key in ["sol", "solana"]: coin_key = "solana"
+                    
+                    try:
+                        target_price = float(parts[2])
+                        if coin_key in crypto_cache:
+                            if coin_key not in custom_target_alerts:
+                                custom_target_alerts[coin_key] = []
+                            custom_target_alerts[coin_key].append(target_price)
+                            send_telegram(
+                                f"✅ *Özel Hedef Alarmı Kuruldu!*\n\n"
+                                f"🪙 **Coin:** `{coin_key.upper()}`\n"
+                                f"🎯 **Hedef Fiyat:** `{target_price:,.2f}` $\n"
+                                f"📊 **Anlık Fiyat:** `{crypto_cache[coin_key]['price']}` $"
+                            )
+                        else:
+                            send_telegram("⚠️ Sadece BTC, ETH ve SOL için alarm kurabilirsiniz.")
+                    except ValueError:
+                        send_telegram("⚠️ Geçersiz fiyat formatı. Örnek: `/alarm btc 80000`")
+                else:
+                    send_telegram("⚠️ Yanlış kullanım. Örnek: `/alarm btc 80000`")
+
+            elif text in ["/alarmlar", "alarmlar"]:
+                if not custom_target_alerts:
+                    send_telegram("🔔 *Kurulu aktif bir hedef fiyat alarmınız yok.*")
+                else:
+                    msg = "🔔 *AKTİF HEDEF FİYAT ALARMLARI*\n\n"
+                    for c_id, t_list in custom_target_alerts.items():
+                        msg += f"🪙 *{c_id.upper()}*: {', '.join([f'`{p:,.2f} $`' for p in t_list])}\n"
+                    send_telegram(msg)
+
+            elif text.startswith("/alarmsil"):
+                parts = raw_text.split()
+                if len(parts) == 2:
+                    coin_key = parts[1].lower()
+                    if coin_key in ["btc", "bitcoin"]: coin_key = "bitcoin"
+                    elif coin_key in ["eth", "ethereum"]: coin_key = "ethereum"
+                    elif coin_key in ["sol", "solana"]: coin_key = "solana"
+                    
+                    if coin_key in custom_target_alerts:
+                        del custom_target_alerts[coin_key]
+                        send_telegram(f"🗑️ *{coin_key.upper()} alarmları temizlendi.*")
+                    else:
+                        send_telegram(f"⚠️ *{coin_key.upper()}* için kurulu alarm bulunamadı.")
+
             elif text in ["/cuzdan", "cuzdan", "/bakiye"]:
                 send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
                 send_telegram(get_okx_balance(), chat_id)
@@ -418,7 +502,7 @@ def telegram_webhook():
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Oto-trade motoru ve RSI taraması güncellendi.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Hedef fiyat alarmları ve otomasyon motoru hazır.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

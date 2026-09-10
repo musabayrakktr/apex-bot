@@ -31,8 +31,8 @@ crypto_cache = {
 
 last_alert_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 last_trade_state = {"bitcoin": "NEUTRAL", "ethereum": "NEUTRAL", "solana": "NEUTRAL"}
+last_signal_state = {"bitcoin": "⚪ BEKLE", "ethereum": "⚪ BEKLE", "solana": "⚪ BEKLE"}
 
-# Özel Fiyat Alarmları Sözlüğü {"bitcoin": [80000.0, 75000.0]}
 custom_target_alerts = {}
 
 last_report_time = time.time()
@@ -200,7 +200,7 @@ def calculate_precision_signal(rsi_val):
     if rsi_val <= 30:
         return "🟢 KESİN ALIM BÖLGESİ (Dip Tespiti)", "🟢 GÜÇLÜ AL"
     elif rsi_val <= 42:
-        return "🟢 KADEMELİ ALIM UYGUN", "🟢 AL"
+        return "🟢 KADEMELİ ALIM UYGUN", "🟢 KADEMELİ AL"
     elif rsi_val >= 70:
         return "🔴 KESİN SATIŞ BÖLGESİ (Doygunluk)", "🔴 KÂR AL / SAT"
     elif rsi_val >= 58:
@@ -208,8 +208,31 @@ def calculate_precision_signal(rsi_val):
     else:
         return "⚪ NÖTR (Sermaye Koruma Modu)", "⚪ BEKLE"
 
+def check_signal_change_alerts():
+    """RSI Sinyal Durumu Değiştiğinde Anında Telegram Bildirimi Gönderir"""
+    global last_signal_state
+    for coin in ["bitcoin", "ethereum", "solana"]:
+        rsi = crypto_cache[coin]["rsi"]
+        curr_p = crypto_cache[coin]["price"]
+        _, current_sig = calculate_precision_signal(rsi)
+        previous_sig = last_signal_state[coin]
+
+        # Sinyal durumu değiştiyse bildir
+        if current_sig != previous_sig:
+            last_signal_state[coin] = current_sig
+            
+            # Nötrden Alım/Satım bölgelerine geçişte anlık bildirim at
+            if current_sig in ["🟢 GÜÇLÜ AL", "🟢 KADEMELİ AL", "🔴 KÂR AL / SAT", "🟡 İZLE / SAT"]:
+                send_telegram(
+                    f"🚨 *SİNYAL DEĞİŞİKLİĞİ UYARISI! ({coin.upper()})*\n\n"
+                    f"📡 **Eski Sinyal:** `{previous_sig}`\n"
+                    f"🎯 **Yeni Sinyal:** *{current_sig}*\n"
+                    f"📊 **Anlık Fiyat:** `{curr_p}` $\n"
+                    f"📈 **Canlı RSI:** `{rsi}`\n\n"
+                    f"💡 *Öneri:* Stratejine göre pozisyon alabilirsin kanka."
+                )
+
 def check_custom_price_alerts():
-    """Kullanıcının Kurduğu Özel Hedef Fiyat Alarmlarını Denetler"""
     global custom_target_alerts
     for coin_id, targets in list(custom_target_alerts.items()):
         curr_p = crypto_cache[coin_id]["price_num"]
@@ -217,7 +240,6 @@ def check_custom_price_alerts():
             continue
         
         for target_p in list(targets):
-            # Hedef fiyata ulaşılma veya geçilme kontrolü
             if curr_p >= target_p:
                 send_telegram(
                     f"🎯 *HEDEF FİYAT ALARMI TETİKLENDİ! ({coin_id.upper()})*\n\n"
@@ -379,7 +401,8 @@ def background_scanner():
             fetch_live_data()
             check_auto_trade_signals()
             check_instant_movement()
-            check_custom_price_alerts()  # Özel hedef alarmlarını tara
+            check_signal_change_alerts()  # Sinyal değişikliklerini anında bildir
+            check_custom_price_alerts()
 
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
@@ -393,7 +416,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Hedef Fiyat Alarm & Oto-Trade Motoru Aktif!"
+    return "APEX Anlık Sinyal & Oto-Trade Motoru Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -411,7 +434,7 @@ def telegram_webhook():
                 set_telegram_commands()
                 start_msg = (
                     "🤖 *APEX OTO-TRADING BOT DEVREDE!*\n\n"
-                    "Hoş geldin patron! Sistem canlı RSI, otomatik borsa emri ve özel hedef fiyat alarmlarını yönetir.\n\n"
+                    "Hoş geldin patron! Sistem canlı RSI, otomatik borsa emri ve anlık sinyal değişikliklerini yönetir.\n\n"
                     "📌 *Hızlı Komutlar:*\n"
                     "💼 /cuzdan - OKX TR Cüzdan Bakiyesi\n"
                     "📈 /analiz - Akıllı RSI & Oto-Trade Raporu\n"
@@ -502,7 +525,7 @@ def telegram_webhook():
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Hedef fiyat alarmları ve otomasyon motoru hazır.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Sinyal değişikliği anlık bildirim sistemi aktif.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

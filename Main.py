@@ -29,6 +29,7 @@ crypto_cache = {
 }
 
 last_alerts = {"bitcoin": "", "ethereum": "", "solana": ""}
+interaction_events = [] # 15 dakikalık süre içindeki olayları tutar
 
 def send_telegram(message, chat_id=CHAT_ID):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -114,7 +115,7 @@ def get_okx_balance():
         return f"❌ OKX Bağlantı Hatası: {e}"
 
 def background_scanner():
-    global crypto_cache, last_alerts
+    global crypto_cache, last_alerts, interaction_events
     scan_count = 0
     
     while True:
@@ -126,21 +127,18 @@ def background_scanner():
                 for item in res['data']:
                     coin_id = item['id']
                     p = float(item['priceUsd'])
-                    # Hassasiyeti biraz arttırarak dinamik destek/direnç koridoru
-                    sup = p * 0.995
-                    res_val = p * 1.005
+                    sup = p * 0.99
+                    res_val = p * 1.01
                     
-                    alert_msg = ""
-                    # Daha hassas tetiklenme eşiği (%0.5 yaklaşma)
-                    if p <= sup * 1.005:
-                        alert_msg = f"🚨 *ALARM! AL FIRSATI / DESTEK SEVİYESİ*\n\n🪙 {coin_id.upper()} desteğe çok yakın!\n💵 Anlık Fiyat: `{p:,.2f}` $\n🛡 Destek: `{sup:,.2f}` $"
-                    elif p >= res_val * 0.995:
-                        alert_msg = f"⚠️ *DİKKAT! DİRENÇ / SATIŞ BÖLGESİ*\n\n🪙 {coin_id.upper()} direnç bölgesini zorluyor!\n💵 Anlık Fiyat: `{p:,.2f}` $\n🎯 Direnç: `{res_val:,.2f}` $"
-
-                    # Farklı bir sinyal oluştuysa doğrudan Telegram'a bas
-                    if alert_msg and last_alerts.get(coin_id) != alert_msg:
-                        send_telegram(alert_msg)
-                        last_alerts[coin_id] = alert_msg
+                    # Sinyal taraması
+                    if p <= sup * 1.003:
+                        evt = f"🚨 {coin_id.upper()} desteğe çok yakın! ({p:,.2f} $)"
+                        if evt not in interaction_events:
+                            interaction_events.append(evt)
+                    elif p >= res_val * 0.997:
+                        evt = f"⚠️ {coin_id.upper()} direnç bölgesinde! ({p:,.2f} $)"
+                        if evt not in interaction_events:
+                            interaction_events.append(evt)
 
                     crypto_cache[coin_id] = {
                         "price": f"{p:,.2f}",
@@ -148,14 +146,43 @@ def background_scanner():
                         "res": f"{res_val:,.2f}"
                     }
 
-            # Her 30 dakikada bir (30 taramada bir) otomatik durum özet bildirimi at
+            # Her 15 dakikada bir (15 taramada bir) özel rapor oluştur ve gönder
             scan_count += 1
-            if scan_count >= 30:
+            if scan_count >= 15:
                 btc_p = crypto_cache.get("bitcoin", {}).get("price", "---")
                 eth_p = crypto_cache.get("ethereum", {}).get("price", "---")
                 sol_p = crypto_cache.get("solana", {}).get("price", "---")
-                summary = f"📊 *PERİYODİK PİYASA BİLDİRİMİ*\n\nBot aktif çalışıyor kanka. Anlık durumlar:\n🪙 BTC: `{btc_p}` $\n🪙 ETH: `{eth_p}` $\n🪙 SOL: `{sol_p}` $"
-                send_telegram(summary)
+
+                if interaction_events:
+                    # Etkileşim/Hareketlilik varsa
+                    events_str = "\n".join([f"• {e}" for e in interaction_events])
+                    report = (
+                        "⚡ *APEX BOT | 15 DK HAREKET RİPORU*\n\n"
+                        "🔥 *Son 15 dakikada piyasada etkileşim oldu!*\n\n"
+                        f"*Önemli Gelişmeler:*\n{events_str}\n\n"
+                        "📈 *Güncel Fiyatlar:*\n"
+                        f"🪙 BTC: `{btc_p}` $\n"
+                        f"🪙 ETH: `{eth_p}` $\n"
+                        f"🪙 SOL: `{sol_p}` $\n\n"
+                        "🛡 _Sistem tıkır tıkır taramaya devam ediyor._"
+                    )
+                else:
+                    # Etkileşim yoksa (Piyasa sakinse)
+                    report = (
+                        "📡 *APEX BOT | 15 DK PERİYODİK RAPOR*\n\n"
+                        "🟢 *Piyasa Sakin - Sistem Aktif*\n"
+                        "_Son 15 dakikada kritik bir al-sat sinyali oluşmadı._\n\n"
+                        "📊 *Anlık Piyasalar:*\n"
+                        f"🪙 Bitcoin: `{btc_p}` $\n"
+                        f"🪙 Ethereum: `{eth_p}` $\n"
+                        f"🪙 Solana: `{sol_p}` $\n\n"
+                        "⚡ _APEX Bot arka planda 7/24 piyasayı izliyor._"
+                    )
+
+                send_telegram(report)
+                
+                # Temizlik
+                interaction_events = []
                 scan_count = 0
 
         except Exception as e:
@@ -165,7 +192,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot OKX Entegrasyonlu Mod Aktif!"
+    return "APEX Bot 15-Dakikalık Akıllı Raporlama Modu Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -204,7 +231,7 @@ def telegram_webhook():
                 reply = f"🥇 *Çeyrek Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
             elif text in ["/test", "test"]:
-                send_telegram("✅ *Test Başarılı!*\nAPEX Bot al-sat alarm tarayıcısı aktif.", chat_id)
+                send_telegram("✅ *Test Başarılı!*\nAPEX Bot 15 dakikalık akıllı raporlama modunda aktif.", chat_id)
             elif text in ["/start", "/help"]:
                 set_telegram_commands()
                 send_telegram("🚀 *APEX BOT MENÜ*\n\n💼 /cuzdan - OKX Cüzdan Bakiyesi\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın", chat_id)

@@ -14,22 +14,21 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
 CHAT_ID = "8982017587"
 
-# OKX API Bilgileri
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 crypto_cache = {
-    "bitcoin": {"price": 78168.00, "rsi": 52, "trend": "Nötr"},
-    "ethereum": {"price": 2450.00, "rsi": 48, "trend": "Nötr"},
-    "solana": {"price": 145.00, "rsi": 61, "trend": "Yükseliş"},
-    "dolar": {"price": 48.48},
-    "gram_altin": {"price": 6858.84},
-    "ceyrek_altin": {"price": 11214.21}
+    "bitcoin": {"price": "0.00", "rsi": 52, "trend": "Nötr"},
+    "ethereum": {"price": "0.00", "rsi": 48, "trend": "Nötr"},
+    "solana": {"price": "0.00", "rsi": 61, "trend": "Yükseliş"},
+    "dolar": {"price": "0.00"},
+    "gram_altin": {"price": "0.00"},
+    "ceyrek_altin": {"price": "0.00"}
 }
 
 last_report_time = time.time()
-REPORT_INTERVAL = 900  # 15 dakika (900 saniye)
+REPORT_INTERVAL = 900  # 15 dakika
 
 def send_telegram(message, chat_id=CHAT_ID):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -48,28 +47,23 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram hatası: {e}")
         return False
 
-def set_telegram_commands():
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
-    commands = [
-        {"command": "start", "description": "Botu başlat ve menüyü gör"},
-        {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
-        {"command": "analiz", "description": "Akıllı RSI & İz Süren Kâr Analizi"},
-        {"command": "btc", "description": "Bitcoin anlık durum"},
-        {"command": "eth", "description": "Ethereum anlık durum"},
-        {"command": "sol", "description": "Solana anlık durum"},
-        {"command": "dolar", "description": "Dolar kuru (USD/TL)"},
-        {"command": "gram", "description": "Gram altın fiyatı"},
-        {"command": "ceyrek", "description": "Çeyrek altın fiyatı"},
-        {"command": "test", "description": "Test ve manuel rapor tetikle"}
-    ]
-    payload = {"commands": commands}
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+def fetch_live_rates():
+    global crypto_cache
+    # Canlı Dolar/TL Kuru
     try:
-        urllib.request.urlopen(req, timeout=10)
-        print("Telegram komut listesi başarıyla güncellendi.")
+        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res = json.loads(response.read().decode())
+            try_rate = res['rates'].get('TRY', 0)
+            if try_rate > 0:
+                crypto_cache["dolar"]["price"] = f"{try_rate:.2f}"
+                # Altın tahmini canlı hesaplama (Ons / 31.1035 * Dolar)
+                gram_ons = 2700 / 31.1035 * try_rate  
+                crypto_cache["gram_altin"]["price"] = f"{gram_ons:.2f}"
+                crypto_cache["ceyrek_altin"]["price"] = f"{gram_ons * 1.63:.2f}"
     except Exception as e:
-        print(f"Komut menüsü hatası: {e}")
+        print(f"Döviz çekme hatası: {e}")
 
 def get_okx_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
@@ -119,6 +113,7 @@ def generate_market_report():
     btc_p = crypto_cache.get("bitcoin", {}).get("price", "---")
     eth_p = crypto_cache.get("ethereum", {}).get("price", "---")
     sol_p = crypto_cache.get("solana", {}).get("price", "---")
+    usd_p = crypto_cache.get("dolar", {}).get("price", "---")
     
     elapsed = time.time() - last_report_time
     remaining = max(0, int(REPORT_INTERVAL - elapsed))
@@ -131,15 +126,17 @@ def generate_market_report():
         "📊 *Anlık Fiyatlar & İndikatörler:*\n"
         f"🪙 **BTC:** `{btc_p}` $ (RSI: 52 - Nötr)\n"
         f"🪙 **ETH:** `{eth_p}` $ (RSI: 48 - Nötr)\n"
-        f"🪙 **SOL:** `{sol_p}` $ (RSI: 61 - Güçlü Alım)\n\n"
+        f"🪙 **SOL:** `{sol_p}` $ (RSI: 61 - Güçlü Alım)\n"
+        f"💵 **USD/TL:** `{usd_p}` TL\n\n"
         f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` sonra\n"
-        "💡 *APEX Tavsiyesi:* Piyasada sert bir sarkma yok. İz süren kâr sistemi aktif, pozisyon koruma modunda."
+        "💡 *APEX Tavsiyesi:* Pozisyonlar koruma modunda, iz süren kâr aktif."
     )
 
 def background_scanner():
     global crypto_cache, last_report_time
     while True:
         try:
+            # Canlı Kripto
             url = "https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=5) as response:
@@ -148,6 +145,9 @@ def background_scanner():
                     coin_id = item['id']
                     p = float(item['priceUsd'])
                     crypto_cache[coin_id]["price"] = f"{p:,.2f}"
+
+            # Canlı Döviz
+            fetch_live_rates()
 
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
@@ -162,7 +162,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Menü Senkronizasyonu Aktif!"
+    return "APEX Bot Canlı Dolar ve Garanti Zamanlayıcı Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -177,31 +177,26 @@ def telegram_webhook():
                 send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
                 send_telegram(get_okx_balance(), chat_id)
             elif text in ["/analiz", "analiz"]:
-                report = generate_market_report()
-                send_telegram(report, chat_id)
+                send_telegram(generate_market_report(), chat_id)
             elif text in ["/btc", "btc"]:
-                d = crypto_cache.get("bitcoin", {})
-                send_telegram(f"🪙 *Bitcoin (BTC)*\nFiyat: `{d.get('price')}` $\nRSI: 52 (Nötr)\n🎯 Trend: Güçlü Desteğin Üzerinde", chat_id)
+                send_telegram(f"🪙 *Bitcoin (BTC)*: `{crypto_cache['bitcoin']['price']}` $", chat_id)
             elif text in ["/eth", "eth"]:
-                d = crypto_cache.get("ethereum", {})
-                send_telegram(f"🪙 *Ethereum (ETH)*\nFiyat: `{d.get('price')}` $\nRSI: 48 (Nötr)", chat_id)
+                send_telegram(f"🪙 *Ethereum (ETH)*: `{crypto_cache['ethereum']['price']}` $", chat_id)
             elif text in ["/sol", "sol"]:
-                d = crypto_cache.get("solana", {})
-                send_telegram(f"🪙 *Solana (SOL)*\nFiyat: `{d.get('price')}` $\nRSI: 61 (Aşırı Alıma Yakın)", chat_id)
+                send_telegram(f"🪙 *Solana (SOL)*: `{crypto_cache['solana']['price']}` $", chat_id)
             elif text in ["/dolar", "dolar"]:
-                send_telegram(f"💵 *Dolar (USD/TL)*: `{crypto_cache['dolar']['price']}` TL", chat_id)
+                fetch_live_rates()
+                send_telegram(f"💵 *Canlı Dolar (USD/TL)*: `{crypto_cache['dolar']['price']}` TL", chat_id)
             elif text in ["/gram", "gram"]:
+                fetch_live_rates()
                 send_telegram(f"🥇 *Gram Altın*: `{crypto_cache['gram_altin']['price']}` TL", chat_id)
             elif text in ["/ceyrek", "çeyrek"]:
+                fetch_live_rates()
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
-                set_telegram_commands()
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Menü komutları tazeledi ve sayaç sıfırlandı.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Zamanlayıcı sıfırlandı.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
-            elif text in ["/start", "/help"]:
-                set_telegram_commands()
-                send_telegram("🚀 *APEX AKILLI BOT MENÜ*\n\n💼 /cuzdan - OKX Cüzdan Bakiyesi\n📈 /analiz - Akıllı RSI & İndikatör Analizi\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın", chat_id)
 
         return jsonify({"status": "success"}), 200
     except Exception as e:
@@ -209,7 +204,6 @@ def telegram_webhook():
         return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':
-    set_telegram_commands()
     t = threading.Thread(target=background_scanner, daemon=True)
     t.start()
     

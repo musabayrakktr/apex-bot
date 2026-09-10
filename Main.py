@@ -28,7 +28,8 @@ crypto_cache = {
     "ceyrek_altin": {"price": 11214.21}
 }
 
-last_report_time = 0
+last_report_time = time.time()
+REPORT_INTERVAL = 900  # 15 dakika (900 saniye)
 
 def send_telegram(message, chat_id=CHAT_ID):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -118,6 +119,12 @@ def generate_market_report():
     eth_p = crypto_cache.get("ethereum", {}).get("price", "---")
     sol_p = crypto_cache.get("solana", {}).get("price", "---")
     
+    # Geri sayım süresi hesaplama
+    elapsed = time.time() - last_report_time
+    remaining = max(0, int(REPORT_INTERVAL - elapsed))
+    rem_min = remaining // 60
+    rem_sec = remaining % 60
+    
     return (
         "📡 *APEX AKILLI PİYASA RAPORU*\n\n"
         "🟢 *Sistem Aktif - Otomatik İzleme Sürüyor*\n\n"
@@ -125,6 +132,7 @@ def generate_market_report():
         f"🪙 **BTC:** `{btc_p}` $ (RSI: 52 - Nötr)\n"
         f"🪙 **ETH:** `{eth_p}` $ (RSI: 48 - Nötr)\n"
         f"🪙 **SOL:** `{sol_p}` $ (RSI: 61 - Güçlü Alım)\n\n"
+        f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` sonra\n"
         "💡 *APEX Tavsiyesi:* Piyasada sert bir sarkma yok. İz süren kâr sistemi aktif, pozisyon koruma modunda."
     )
 
@@ -142,11 +150,10 @@ def background_scanner():
                     crypto_cache[coin_id]["price"] = f"{p:,.2f}"
 
             now = time.time()
-            # 15 dakika (900 saniye) geçtiyse otomatik rapor bas
-            if now - last_report_time >= 900:
+            if now - last_report_time >= REPORT_INTERVAL:
+                last_report_time = now
                 report = generate_market_report()
                 send_telegram(report)
-                last_report_time = now
 
         except Exception as e:
             print(f"Tarama hatası: {e}")
@@ -155,10 +162,11 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Akıllı İşlem Modu Aktif!"
+    return "APEX Bot Geri Sayım Sayaçlı Mod Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
+    global last_report_time
     try:
         data = request.json
         if "message" in data:
@@ -187,8 +195,8 @@ def telegram_webhook():
             elif text in ["/ceyrek", "çeyrek"]:
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
-                # Test komutu basıldığında hem onay mesajı hem anında 15 dk raporunu atar
-                send_telegram("✅ *Test Başarılı!* Raporlama zamanlayıcısı sıfırlandı.", chat_id)
+                last_report_time = time.time()
+                send_telegram("✅ *Test Başarılı!* Geri sayım sayacı 15 dakikaya sıfırlandı.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
             elif text in ["/start", "/help"]:
                 set_telegram_commands()

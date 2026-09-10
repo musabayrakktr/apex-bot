@@ -3,6 +3,10 @@ import threading
 import time
 import json
 import urllib.request
+import hmac
+import hashlib
+import base64
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -10,17 +14,20 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
 CHAT_ID = "8982017587"
 
-# Hafıza (Cache) ve Alarm Durum Takibi
+# OKX API Bilgileri (Render Environment Variables'dan çekilir)
+OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
+OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
+OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
+
 crypto_cache = {
-    "bitcoin": {"price": 78168.00, "support": 77952.20, "res": 79401.00, "status": "Nötr."},
-    "ethereum": {"price": 2450.00, "support": 2400.00, "res": 2520.00, "status": "Nötr."},
-    "solana": {"price": 145.00, "support": 140.00, "res": 150.00, "status": "Nötr."},
-    "dolar": {"price": 48.48, "status": "Döviz"},
-    "gram_altin": {"price": 6858.84, "status": "Altın (Gram)"},
-    "ceyrek_altin": {"price": 11214.21, "status": "Altın (Çeyrek)"}
+    "bitcoin": {"price": 78168.00, "support": 77952.20, "res": 79401.00},
+    "ethereum": {"price": 2450.00, "support": 2400.00, "res": 2520.00},
+    "solana": {"price": 145.00, "support": 140.00, "res": 150.00},
+    "dolar": {"price": 48.48},
+    "gram_altin": {"price": 6858.84},
+    "ceyrek_altin": {"price": 11214.21}
 }
 
-# Spam atmasın diye son gönderilen sinyal durumunu saklıyoruz
 last_alerts = {"bitcoin": "", "ethereum": "", "solana": ""}
 
 def send_telegram(message, chat_id=CHAT_ID):
@@ -44,6 +51,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
+        {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
         {"command": "btc", "description": "Bitcoin anlık durum ve analiz"},
         {"command": "eth", "description": "Ethereum anlık durum ve analiz"},
         {"command": "sol", "description": "Solana anlık durum ve analiz"},
@@ -57,9 +65,52 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
-        print("Telegram menü komutları güncellendi.")
     except Exception as e:
         print(f"Komut menüsü hatası: {e}")
+
+# OKX API İmza Üretici (V5 API)
+def get_okx_balance():
+    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        return "⚠️ OKX API anahtarları eksik! Lütfen Render panelinden OKX_API_KEY, OKX_SECRET_KEY ve OKX_PASSPHRASE değişkenlerini tanımlayın."
+
+    request_path = "/api/v5/account/balance"
+    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    message = timestamp + "GET" + request_path
+    
+    mac = hmac.new(OKX_SECRET_KEY.encode('utf-8'), message.encode('utf-8'), hashlib.sha256)
+    sign = base64.b64encode(mac.digest()).decode('utf-8')
+
+    headers = {
+        "OK-ACCESS-KEY": OKX_API_KEY,
+        "OK-ACCESS-SIGN": sign,
+        "OK-ACCESS-TIMESTAMP": timestamp,
+        "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
+        "Content-Type": "application/json"
+    }
+
+    url = f"https://www.okx.com{request_path}"
+    req = urllib.request.Request(url, headers=headers)
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res = json.loads(response.read().decode())
+            if res.get("code") == "0" and res.get("data"):
+                details = res["data"][0].get("details", [])
+                if not details:
+                    return "💼 *OKX Cüzdanınızda kullanılabilir bakiye bulunamadı.*"
+                
+                msg = "💼 *OKX TR CÜZDAN BAKİYESİ*\n\n"
+                for coin in details:
+                    ccy = coin.get("ccy")
+                    bal = float(coin.get("eq", "0"))
+                    avail = float(coin.get("availBal", "0"))
+                    if bal > 0:
+                        msg += f"🪙 *{ccy}*: `{bal:.4f}` (Kullanılabilir: `{avail:.4f}`)\n"
+                return msg
+            else:
+                return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
+    except Exception as e:
+        return f"❌ OKX Bağlantı Hatası: {e}"
 
 def background_scanner():
     global crypto_cache, last_alerts
@@ -75,35 +126,31 @@ def background_scanner():
                     sup = p * 0.99
                     res_val = p * 1.01
                     
-                    # Destek / Direnç Alarm Kontrol Mantığı
                     alert_msg = ""
-                    # Örnek mantık: Fiyat desteğe çok yaklaşırsa veya direnci zorlarsa
                     if p <= sup * 1.002:
                         alert_msg = f"🚨 *ALARM! AL FIRSATI OLABİLİR!*\n\n🪙 {coin_id.upper()} desteğe çok yakın!\n💵 Fiyat: `{p:,.2f}` $\n🛡 Destek: `{sup:,.2f}` $"
                     elif p >= res_val * 0.998:
                         alert_msg = f"⚠️ *DİKKAT! DİRENÇ BÖLGESİ!*\n\n🪙 {coin_id.upper()} direnç seviyesine ulaştı!\n💵 Fiyat: `{p:,.2f}` $\n🎯 Direnç: `{res_val:,.2f}` $"
 
-                    # Eğer yeni bir durum oluştuysa ve eskisinden farklıysa Telegram'a otomatik bas
                     if alert_msg and last_alerts.get(coin_id) != alert_msg:
                         send_telegram(alert_msg)
                         last_alerts[coin_id] = alert_msg
                     elif not alert_msg:
-                        last_alerts[coin_id] = "" # Bölgeden çıkınca sıfırla
+                        last_alerts[coin_id] = ""
 
                     crypto_cache[coin_id] = {
                         "price": f"{p:,.2f}",
                         "support": f"{sup:,.2f}",
-                        "res": f"{res_val:,.2f}",
-                        "status": "🎯 Aktif Takipte"
+                        "res": f"{res_val:,.2f}"
                     }
         except Exception as e:
-            print(f"Tarama ve Alarm hatası: {e}")
+            print(f"Tarama hatası: {e}")
         
         time.sleep(60)
 
 @app.route('/')
 def home():
-    return "APEX Bot Al-Sat Alarm Modu Aktif!"
+    return "APEX Bot OKX Entegrasyonlu Mod Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -113,38 +160,42 @@ def telegram_webhook():
             chat_id = data["message"]["chat"]["id"]
             text = data["message"].get("text", "").strip().lower()
 
-            if text in ["/btc", "btc"]:
+            if text in ["/cuzdan", "cuzdan", "/bakiye", "bakiye"]:
+                send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
+                bal_msg = get_okx_balance()
+                send_telegram(bal_msg, chat_id)
+            elif text in ["/btc", "btc"]:
                 d = crypto_cache.get("bitcoin", {})
-                reply = f"🪙 *Bitcoin (BTC) Anlık Durum*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
+                reply = f"🪙 *Bitcoin (BTC)*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/eth", "eth"]:
                 d = crypto_cache.get("ethereum", {})
-                reply = f"🪙 *Ethereum (ETH) Anlık Durum*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
+                reply = f"🪙 *Ethereum (ETH)*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/sol", "sol"]:
                 d = crypto_cache.get("solana", {})
-                reply = f"🪙 *Solana (SOL) Anlık Durum*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
+                reply = f"🪙 *Solana (SOL)*\n\n💵 Fiyat: `{d.get('price')}` $\n🛡 Destek: `{d.get('support')}` $\n🎯 Direnç: `{d.get('res')}` $"
                 send_telegram(reply, chat_id)
             elif text in ["/dolar", "dolar"]:
                 d = crypto_cache.get("dolar", {})
                 reply = f"💵 *Dolar (USD/TL)*\n\nKur: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
-            elif text in ["/gram", "gram", "altın", "/altın"]:
+            elif text in ["/gram", "gram"]:
                 d = crypto_cache.get("gram_altin", {})
                 reply = f"🥇 *Gram Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
-            elif text in ["/ceyrek", "çeyrek", "/çeyrek"]:
+            elif text in ["/ceyrek", "çeyrek"]:
                 d = crypto_cache.get("ceyrek_altin", {})
                 reply = f"🥇 *Çeyrek Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
             elif text in ["/test", "test"]:
-                send_telegram("✅ *Test Başarılı!*\nAPEX Bot al-sat alarm sistemi sorunsuz çalışıyor.", chat_id)
+                send_telegram("✅ *Test Başarılı!*\nAPEX Bot OKX cüzdan destekli sürüm aktif.", chat_id)
             elif text in ["/start", "/help"]:
-                send_telegram("🚀 *APEX BOT MENÜ*\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar Kuru\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın\n👉 /test - Test Bildirimi", chat_id)
+                send_telegram("🚀 *APEX BOT MENÜ*\n\n💼 /cuzdan - OKX Cüzdan Bakiyesi\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın", chat_id)
 
         return jsonify({"status": "success"}), 200
     except Exception as e:
-        print(f"Telegram webhook hatası: {e}")
+        print(f"Webhook hatası: {e}")
         return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':

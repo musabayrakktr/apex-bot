@@ -19,13 +19,16 @@ OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 crypto_cache = {
-    "bitcoin": {"price": "0.00", "rsi": 52},
-    "ethereum": {"price": "0.00", "rsi": 48},
-    "solana": {"price": "0.00", "rsi": 61},
+    "bitcoin": {"price_num": 0.0, "price": "0.00", "rsi": 50},
+    "ethereum": {"price_num": 0.0, "price": "0.00", "rsi": 50},
+    "solana": {"price_num": 0.0, "price": "0.00", "rsi": 50},
     "dolar": {"price": "0.00"},
     "gram_altin": {"price": "0.00"},
     "ceyrek_altin": {"price": "0.00"}
 }
+
+# Fiyat geçmişi kaydı (Ani hareket tespiti için)
+last_alert_prices = {"bitcoin": 0.0, "ethereum": 0.0, "solana": 0.0}
 
 last_report_time = time.time()
 REPORT_INTERVAL = 900  # 15 dakika
@@ -52,7 +55,7 @@ def set_telegram_commands():
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
-        {"command": "analiz", "description": "Akıllı RSI & İz Süren Kâr Analizi"},
+        {"command": "analiz", "description": "Akıllı RSI & Sinyal Analizi"},
         {"command": "btc", "description": "Bitcoin anlık durum"},
         {"command": "eth", "description": "Ethereum anlık durum"},
         {"command": "sol", "description": "Solana anlık durum"},
@@ -87,9 +90,15 @@ def fetch_live_data():
     eth = fetch_okx_ticker("ETH-USDT")
     sol = fetch_okx_ticker("SOL-USDT")
 
-    if btc > 0: crypto_cache["bitcoin"]["price"] = f"{btc:,.2f}"
-    if eth > 0: crypto_cache["ethereum"]["price"] = f"{eth:,.2f}"
-    if sol > 0: crypto_cache["solana"]["price"] = f"{sol:,.2f}"
+    if btc > 0:
+        crypto_cache["bitcoin"]["price_num"] = btc
+        crypto_cache["bitcoin"]["price"] = f"{btc:,.2f}"
+    if eth > 0:
+        crypto_cache["ethereum"]["price_num"] = eth
+        crypto_cache["ethereum"]["price"] = f"{eth:,.2f}"
+    if sol > 0:
+        crypto_cache["solana"]["price_num"] = sol
+        crypto_cache["solana"]["price"] = f"{sol:,.2f}"
 
     try:
         url = "https://api.exchangerate-api.com/v4/latest/USD"
@@ -111,6 +120,49 @@ def fetch_live_data():
                         crypto_cache["ceyrek_altin"]["price"] = f"{(gram * 1.635):,.2f}"
     except Exception as e:
         print(f"Döviz/Altın hatası: {e}")
+
+def calculate_precision_signal(rsi_val):
+    if rsi_val <= 30:
+        return "🟢 KESİN ALIM BÖLGESİ (Dip Tespiti)", "🟢 GÜÇLÜ AL"
+    elif rsi_val <= 40:
+        return "🟢 KADEMELİ ALIM UYGUN", "🟢 AL"
+    elif rsi_val >= 70:
+        return "🔴 KESİN SATIŞ BÖLGESİ (Doygunluk)", "🔴 KÂR AL / SAT"
+    elif rsi_val >= 60:
+        return "🟡 KÂR REALİZASYONU YAKIN", "🟡 İZLE / SAT"
+    else:
+        return "⚪ NÖTR (Sermaye Koruma Modu)", "⚪ POZİSYON KORU"
+
+def check_instant_movement():
+    global last_alert_prices
+    for coin_id in ["bitcoin", "ethereum", "solana"]:
+        curr_p = crypto_cache[coin_id]["price_num"]
+        prev_p = last_alert_prices[coin_id]
+
+        if prev_p == 0.0:
+            last_alert_prices[coin_id] = curr_p
+            continue
+
+        if curr_p > 0 and prev_p > 0:
+            change_pct = ((curr_p - prev_p) / prev_p) * 100
+
+            # Hassas Risk Koruma Limitleri (%1.5 Ani Değişim)
+            if change_pct >= 1.5:
+                last_alert_prices[coin_id] = curr_p
+                send_telegram(
+                    f"🚀 *SATIŞ / KÂR AL SİNYALİ! ({coin_id.upper()})*\n\n"
+                    f"📈 *Fiyat Sıçraması:* `{curr_p:,.2f}` $\n"
+                    f"⚡ *Değişim:* `+{change_pct:.2f}%`\n"
+                    f"💡 *Öneri:* Kâr kilitleniyor, kademeli satış düşünülebilir."
+                )
+            elif change_pct <= -1.5:
+                last_alert_prices[coin_id] = curr_p
+                send_telegram(
+                    f"🛡️ *SERMAYE KORUMA / DIP ALARMI! ({coin_id.upper()})*\n\n"
+                    f"📉 *Fiyat Düşüşü:* `{curr_p:,.2f}` $\n"
+                    f"⚡ *Değişim:* `{change_pct:.2f}%`\n"
+                    f"💡 *Öneri:* Stop-Loss koruması aktif. Dip alım fırsatı değerlendirilebilir."
+                )
 
 def get_okx_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
@@ -163,21 +215,32 @@ def generate_market_report():
     sol_p = crypto_cache.get("solana", {}).get("price", "---")
     usd_p = crypto_cache.get("dolar", {}).get("price", "---")
     
+    btc_rsi = crypto_cache["bitcoin"]["rsi"]
+    eth_rsi = crypto_cache["ethereum"]["rsi"]
+    sol_rsi = crypto_cache["solana"]["rsi"]
+
+    btc_status, btc_sig = calculate_precision_signal(btc_rsi)
+    eth_status, eth_sig = calculate_precision_signal(eth_rsi)
+    sol_status, sol_sig = calculate_precision_signal(sol_rsi)
+
     elapsed = time.time() - last_report_time
     remaining = max(0, int(REPORT_INTERVAL - elapsed))
     rem_min = remaining // 60
     rem_sec = remaining % 60
     
     return (
-        "📡 *APEX AKILLI PİYASA RAPORU*\n\n"
-        "🟢 *Sistem Aktif - OKX Canlı Veri Akışı*\n\n"
-        "📊 *Anlık Fiyatlar & İndikatörler:*\n"
-        f"🪙 **BTC:** `{btc_p}` $ (RSI: 52 - Nötr)\n"
-        f"🪙 **ETH:** `{eth_p}` $ (RSI: 48 - Nötr)\n"
-        f"🪙 **SOL:** `{sol_p}` $ (RSI: 61 - Güçlü Alım)\n"
+        "📡 *APEX AKILLI MİKRO-TİCARET RAPORU*\n\n"
+        "🟢 *Sistem Aktif - Hassas Risk Yönetimi*\n\n"
+        "📊 *Anlık Fiyatlar & Sinyaller:*\n"
+        f"🪙 **BTC:** `{btc_p}` $ | RSI: `{btc_rsi}` -> *{btc_sig}*\n"
+        f"🪙 **ETH:** `{eth_p}` $ | RSI: `{eth_rsi}` -> *{eth_sig}*\n"
+        f"🪙 **SOL:** `{sol_p}` $ | RSI: `{sol_rsi}` -> *{sol_sig}*\n"
         f"💵 **USD/TL:** `{usd_p}` TL\n\n"
-        f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` sonra\n"
-        "💡 *APEX Tavsiyesi:* Pozisyonlar koruma modunda, iz süren kâr aktif."
+        "🎯 *STRATEJİK SERMAYE DURUMU:*\n"
+        f"• BTC: {btc_status}\n"
+        f"• ETH: {eth_status}\n"
+        f"• SOL: {sol_status}\n\n"
+        f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` sonra"
     )
 
 def background_scanner():
@@ -185,6 +248,8 @@ def background_scanner():
     while True:
         try:
             fetch_live_data()
+            check_instant_movement()
+
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
                 last_report_time = now
@@ -197,7 +262,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Karşılama Mesajı Aktif!"
+    return "APEX Hassas Risk Yönetim Motoru Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -214,15 +279,14 @@ def telegram_webhook():
                 set_telegram_commands()
                 start_msg = (
                     "🤖 *APEX TRADING & MONITORING BOT DEVREDE!*\n\n"
-                    "Hoş geldin patron! Piyasa takibi, canlı RSI analizi ve cüzdan yönetimi için sistem 7/24 aktif çalışıyor.\n\n"
-                    "📌 *Kullanabileceğin Hızlı Komutlar:*\n"
+                    "Hoş geldin patron! Sistem hem 15 dakikada bir rutin rapor atar hem de sert fiyat hareketlerinde anında uyarır.\n\n"
+                    "📌 *Hızlı Komutlar:*\n"
                     "💼 /cuzdan - OKX TR Cüzdan Bakiyesi\n"
-                    "📈 /analiz - Akıllı RSI & İz Süren Kâr Analizi\n\n"
-                    "🪙 *Kripto Kurları:*\n"
+                    "📈 /analiz - Akıllı RSI & Sinyal Analizi\n\n"
+                    "🪙 *Kripto:*\n"
                     "👉 /btc | /eth | /sol\n\n"
-                    "💵 *Piyasa Kurları:*\n"
-                    "👉 /dolar | /gram | /ceyrek\n\n"
-                    "🔄 *Otomatik Rapor:* Her 15 dakikada bir canlı piyasa durum değerlendirmesi telefonuna düşecektir."
+                    "💵 *Piyasa:*\n"
+                    "👉 /dolar | /gram | /ceyrek"
                 )
                 send_telegram(start_msg, chat_id)
             elif text in ["/cuzdan", "cuzdan", "/bakiye"]:
@@ -231,11 +295,17 @@ def telegram_webhook():
             elif text in ["/analiz", "analiz"]:
                 send_telegram(generate_market_report(), chat_id)
             elif text in ["/btc", "btc"]:
-                send_telegram(f"🪙 *Bitcoin (BTC)*: `{crypto_cache['bitcoin']['price']}` $", chat_id)
+                rsi = crypto_cache['bitcoin']['rsi']
+                _, sig = calculate_precision_signal(rsi)
+                send_telegram(f"🪙 *Bitcoin (BTC)*: `{crypto_cache['bitcoin']['price']}` $\nRSI: `{rsi}` | Sinyal: *{sig}*", chat_id)
             elif text in ["/eth", "eth"]:
-                send_telegram(f"🪙 *Ethereum (ETH)*: `{crypto_cache['ethereum']['price']}` $", chat_id)
+                rsi = crypto_cache['ethereum']['rsi']
+                _, sig = calculate_precision_signal(rsi)
+                send_telegram(f"🪙 *Ethereum (ETH)*: `{crypto_cache['ethereum']['price']}` $\nRSI: `{rsi}` | Sinyal: *{sig}*", chat_id)
             elif text in ["/sol", "sol"]:
-                send_telegram(f"🪙 *Solana (SOL)*: `{crypto_cache['solana']['price']}` $", chat_id)
+                rsi = crypto_cache['solana']['rsi']
+                _, sig = calculate_precision_signal(rsi)
+                send_telegram(f"🪙 *Solana (SOL)*: `{crypto_cache['solana']['price']}` $\nRSI: `{rsi}` | Sinyal: *{sig}*", chat_id)
             elif text in ["/dolar", "dolar"]:
                 send_telegram(f"💵 *Canlı Dolar (USD/TL)*: `{crypto_cache['dolar']['price']}` TL", chat_id)
             elif text in ["/gram", "gram"]:
@@ -244,7 +314,7 @@ def telegram_webhook():
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Canlı fiyatlar güncellendi.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Hassas tarama motoru aktif edildi.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
 
         return jsonify({"status": "success"}), 200

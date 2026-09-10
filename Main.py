@@ -115,6 +115,8 @@ def get_okx_balance():
 
 def background_scanner():
     global crypto_cache, last_alerts
+    scan_count = 0
+    
     while True:
         try:
             url = "https://api.coincap.io/v2/assets?ids=bitcoin,ethereum,solana"
@@ -124,26 +126,38 @@ def background_scanner():
                 for item in res['data']:
                     coin_id = item['id']
                     p = float(item['priceUsd'])
-                    sup = p * 0.99
-                    res_val = p * 1.01
+                    # Hassasiyeti biraz arttırarak dinamik destek/direnç koridoru
+                    sup = p * 0.995
+                    res_val = p * 1.005
                     
                     alert_msg = ""
-                    if p <= sup * 1.002:
-                        alert_msg = f"🚨 *ALARM! AL FIRSATI OLABİLİR!*\n\n🪙 {coin_id.upper()} desteğe çok yakın!\n💵 Fiyat: `{p:,.2f}` $\n🛡 Destek: `{sup:,.2f}` $"
-                    elif p >= res_val * 0.998:
-                        alert_msg = f"⚠️ *DİKKAT! DİRENÇ BÖLGESİ!*\n\n🪙 {coin_id.upper()} direnç seviyesine ulaştı!\n💵 Fiyat: `{p:,.2f}` $\n🎯 Direnç: `{res_val:,.2f}` $"
+                    # Daha hassas tetiklenme eşiği (%0.5 yaklaşma)
+                    if p <= sup * 1.005:
+                        alert_msg = f"🚨 *ALARM! AL FIRSATI / DESTEK SEVİYESİ*\n\n🪙 {coin_id.upper()} desteğe çok yakın!\n💵 Anlık Fiyat: `{p:,.2f}` $\n🛡 Destek: `{sup:,.2f}` $"
+                    elif p >= res_val * 0.995:
+                        alert_msg = f"⚠️ *DİKKAT! DİRENÇ / SATIŞ BÖLGESİ*\n\n🪙 {coin_id.upper()} direnç bölgesini zorluyor!\n💵 Anlık Fiyat: `{p:,.2f}` $\n🎯 Direnç: `{res_val:,.2f}` $"
 
+                    # Farklı bir sinyal oluştuysa doğrudan Telegram'a bas
                     if alert_msg and last_alerts.get(coin_id) != alert_msg:
                         send_telegram(alert_msg)
                         last_alerts[coin_id] = alert_msg
-                    elif not alert_msg:
-                        last_alerts[coin_id] = ""
 
                     crypto_cache[coin_id] = {
                         "price": f"{p:,.2f}",
                         "support": f"{sup:,.2f}",
                         "res": f"{res_val:,.2f}"
                     }
+
+            # Her 30 dakikada bir (30 taramada bir) otomatik durum özet bildirimi at
+            scan_count += 1
+            if scan_count >= 30:
+                btc_p = crypto_cache.get("bitcoin", {}).get("price", "---")
+                eth_p = crypto_cache.get("ethereum", {}).get("price", "---")
+                sol_p = crypto_cache.get("solana", {}).get("price", "---")
+                summary = f"📊 *PERİYODİK PİYASA BİLDİRİMİ*\n\nBot aktif çalışıyor kanka. Anlık durumlar:\n🪙 BTC: `{btc_p}` $\n🪙 ETH: `{eth_p}` $\n🪙 SOL: `{sol_p}` $"
+                send_telegram(summary)
+                scan_count = 0
+
         except Exception as e:
             print(f"Tarama hatası: {e}")
         
@@ -190,7 +204,7 @@ def telegram_webhook():
                 reply = f"🥇 *Çeyrek Altın*\n\nFiyat: `{d.get('price')}` TL"
                 send_telegram(reply, chat_id)
             elif text in ["/test", "test"]:
-                send_telegram("✅ *Test Başarılı!*\nAPEX Bot OKX cüzdan destekli sürüm aktif.", chat_id)
+                send_telegram("✅ *Test Başarılı!*\nAPEX Bot al-sat alarm tarayıcısı aktif.", chat_id)
             elif text in ["/start", "/help"]:
                 set_telegram_commands()
                 send_telegram("🚀 *APEX BOT MENÜ*\n\n💼 /cuzdan - OKX Cüzdan Bakiyesi\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın", chat_id)

@@ -67,6 +67,7 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
+        print("Telegram komut listesi başarıyla güncellendi.")
     except Exception as e:
         print(f"Komut menüsü hatası: {e}")
 
@@ -119,7 +120,6 @@ def generate_market_report():
     eth_p = crypto_cache.get("ethereum", {}).get("price", "---")
     sol_p = crypto_cache.get("solana", {}).get("price", "---")
     
-    # Geri sayım süresi hesaplama
     elapsed = time.time() - last_report_time
     remaining = max(0, int(REPORT_INTERVAL - elapsed))
     rem_min = remaining // 60
@@ -162,7 +162,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot Geri Sayım Sayaçlı Mod Aktif!"
+    return "APEX Bot Menü Senkronizasyonu Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -195,8 +195,9 @@ def telegram_webhook():
             elif text in ["/ceyrek", "çeyrek"]:
                 send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
             elif text in ["/test", "test"]:
+                set_telegram_commands()
                 last_report_time = time.time()
-                send_telegram("✅ *Test Başarılı!* Geri sayım sayacı 15 dakikaya sıfırlandı.", chat_id)
+                send_telegram("✅ *Test Başarılı!* Menü komutları tazeledi ve sayaç sıfırlandı.", chat_id)
                 send_telegram(generate_market_report(), chat_id)
             elif text in ["/start", "/help"]:
                 set_telegram_commands()

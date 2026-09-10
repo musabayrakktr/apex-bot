@@ -14,7 +14,7 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8851186730:AAEVMnLsV9oh5PMEiw4K9eUWPrkW68z-WDc"
 CHAT_ID = "8982017587"
 
-# OKX API Bilgileri (Render Environment Variables'dan çekilir)
+# OKX API Bilgileri
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
@@ -49,7 +49,6 @@ def send_telegram(message, chat_id=CHAT_ID):
 
 def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
-    # Yeni bir komut eklediğimizde buraya da otomatik eklenir
     commands = [
         {"command": "start", "description": "Botu başlat ve menüyü gör"},
         {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
@@ -66,13 +65,13 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
-        print("Telegram menü komutları güncellendi.")
+        print("Telegram menü komutları başarıyla güncellendi.")
     except Exception as e:
         print(f"Komut menüsü hatası: {e}")
 
 def get_okx_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return "⚠️ OKX API anahtarları eksik! Lütfen Render panelinden OKX_API_KEY, OKX_SECRET_KEY ve OKX_PASSPHRASE değişkenlerini tanımlayın."
+        return "⚠️ OKX API anahtarları eksik! Render ayarlarını kontrol edin."
 
     request_path = "/api/v5/account/balance"
     timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
@@ -89,7 +88,8 @@ def get_okx_balance():
         "Content-Type": "application/json"
     }
 
-    url = f"https://www.okx.com{request_path}"
+    # OKX TR için uç nokta adresi
+    url = f"https://www.tr.okx.com{request_path}"
     req = urllib.request.Request(url, headers=headers)
     
     try:
@@ -111,7 +111,28 @@ def get_okx_balance():
             else:
                 return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
     except Exception as e:
-        return f"❌ OKX Bağlantı Hatası: {e}"
+        # TR adresi yanıt vermezse standart globale düşme mekanizması
+        try:
+            url_global = f"https://www.okx.com{request_path}"
+            req_g = urllib.request.Request(url_global, headers=headers)
+            with urllib.request.urlopen(req_g, timeout=10) as response_g:
+                res = json.loads(response_g.read().decode())
+                if res.get("code") == "0" and res.get("data"):
+                    details = res["data"][0].get("details", [])
+                    if not details:
+                        return "💼 *OKX Cüzdanınızda kullanılabilir bakiye bulunamadı.*"
+                    msg = "💼 *OKX CÜZDAN BAKİYESİ*\n\n"
+                    for coin in details:
+                        ccy = coin.get("ccy")
+                        bal = float(coin.get("eq", "0"))
+                        avail = float(coin.get("availBal", "0"))
+                        if bal > 0:
+                            msg += f"🪙 *{ccy}*: `{bal:.4f}` (Kullanılabilir: `{avail:.4f}`)\n"
+                    return msg
+                else:
+                    return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
+        except Exception as ex:
+            return f"❌ OKX Bağlantı Hatası: {ex}"
 
 def background_scanner():
     global crypto_cache, last_alerts
@@ -192,6 +213,7 @@ def telegram_webhook():
             elif text in ["/test", "test"]:
                 send_telegram("✅ *Test Başarılı!*\nAPEX Bot OKX cüzdan destekli sürüm aktif.", chat_id)
             elif text in ["/start", "/help"]:
+                set_telegram_commands()
                 send_telegram("🚀 *APEX BOT MENÜ*\n\n💼 /cuzdan - OKX Cüzdan Bakiyesi\n\nKripto:\n👉 /btc - Bitcoin\n👉 /eth - Ethereum\n👉 /sol - Solana\n\nPiyasa:\n👉 /dolar - Dolar\n👉 /gram - Gram Altın\n👉 /ceyrek - Çeyrek Altın", chat_id)
 
         return jsonify({"status": "success"}), 200

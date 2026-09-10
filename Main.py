@@ -47,6 +47,28 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram hatası: {e}")
         return False
 
+def set_telegram_commands():
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
+    commands = [
+        {"command": "start", "description": "Botu başlat ve menüyü gör"},
+        {"command": "cuzdan", "description": "OKX TR Cüzdan Bakiyesini Gör"},
+        {"command": "analiz", "description": "Akıllı RSI & İz Süren Kâr Analizi"},
+        {"command": "btc", "description": "Bitcoin anlık durum"},
+        {"command": "eth", "description": "Ethereum anlık durum"},
+        {"command": "sol", "description": "Solana anlık durum"},
+        {"command": "dolar", "description": "Dolar kuru (USD/TL)"},
+        {"command": "gram", "description": "Gram altın fiyatı"},
+        {"command": "ceyrek", "description": "Çeyrek altın fiyatı"},
+        {"command": "test", "description": "Test ve manuel rapor tetikle"}
+    ]
+    payload = {"commands": commands}
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"Komut menüsü hatası: {e}")
+
 def fetch_okx_ticker(inst_id):
     try:
         url = f"https://www.okx.com/api/v5/market/ticker?instId={inst_id}"
@@ -61,7 +83,6 @@ def fetch_okx_ticker(inst_id):
 
 def fetch_live_data():
     global crypto_cache
-    # OKX Gerçek Canlı Kripto Fiyatları
     btc = fetch_okx_ticker("BTC-USDT")
     eth = fetch_okx_ticker("ETH-USDT")
     sol = fetch_okx_ticker("SOL-USDT")
@@ -70,7 +91,6 @@ def fetch_live_data():
     if eth > 0: crypto_cache["ethereum"]["price"] = f"{eth:,.2f}"
     if sol > 0: crypto_cache["solana"]["price"] = f"{sol:,.2f}"
 
-    # Canlı Dolar ve Altın Fiyatları
     try:
         url = "https://api.exchangerate-api.com/v4/latest/USD"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -80,7 +100,6 @@ def fetch_live_data():
             if try_rate > 0:
                 crypto_cache["dolar"]["price"] = f"{try_rate:.2f}"
                 
-                # Güncel Ons Altın Verisi
                 gold_url = "https://api.gold-api.com/price/XAU"
                 req_gold = urllib.request.Request(gold_url, headers={'User-Agent': 'Mozilla/5.0'})
                 with urllib.request.urlopen(req_gold, timeout=5) as resp_gold:
@@ -178,7 +197,7 @@ def background_scanner():
 
 @app.route('/')
 def home():
-    return "APEX Bot OKX Canlı Piyasa Entegrasyonu Aktif!"
+    return "APEX Bot Karşılama Mesajı Aktif!"
 
 @app.route('/telegram-webhook', methods=['POST'])
 def telegram_webhook():
@@ -191,7 +210,22 @@ def telegram_webhook():
 
             fetch_live_data()
 
-            if text in ["/cuzdan", "cuzdan", "/bakiye"]:
+            if text in ["/start", "start", "/help"]:
+                set_telegram_commands()
+                start_msg = (
+                    "🤖 *APEX TRADING & MONITORING BOT DEVREDE!*\n\n"
+                    "Hoş geldin patron! Piyasa takibi, canlı RSI analizi ve cüzdan yönetimi için sistem 7/24 aktif çalışıyor.\n\n"
+                    "📌 *Kullanabileceğin Hızlı Komutlar:*\n"
+                    "💼 /cuzdan - OKX TR Cüzdan Bakiyesi\n"
+                    "📈 /analiz - Akıllı RSI & İz Süren Kâr Analizi\n\n"
+                    "🪙 *Kripto Kurları:*\n"
+                    "👉 /btc | /eth | /sol\n\n"
+                    "💵 *Piyasa Kurları:*\n"
+                    "👉 /dolar | /gram | /ceyrek\n\n"
+                    "🔄 *Otomatik Rapor:* Her 15 dakikada bir canlı piyasa durum değerlendirmesi telefonuna düşecektir."
+                )
+                send_telegram(start_msg, chat_id)
+            elif text in ["/cuzdan", "cuzdan", "/bakiye"]:
                 send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
                 send_telegram(get_okx_balance(), chat_id)
             elif text in ["/analiz", "analiz"]:
@@ -219,6 +253,7 @@ def telegram_webhook():
         return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':
+    set_telegram_commands()
     t = threading.Thread(target=background_scanner, daemon=True)
     t.start()
     

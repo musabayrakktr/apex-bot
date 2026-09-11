@@ -25,7 +25,7 @@ def run_health_check_server():
     httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
     httpd.serve_forever()
 
-# --- 2. BOT AYARLARI ---
+# --- 2. BOT AYARLARI VE API BİLGİLERİ ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -104,18 +104,18 @@ async def cmd_cuzdan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Cüzdan hatası: {e}")
 
 if __name__ == "__main__":
-    # Render Port dinleyicisini başlat
     threading.Thread(target=run_health_check_server, daemon=True).start()
 
-    # Telegram Bot Kurulumu
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("analiz", cmd_analiz))
     app.add_handler(CommandHandler("cuzdan", cmd_cuzdan))
 
-    # Eski takılı kalmış webhook ve güncellemeleri temizle
-    requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true")
+    try:
+        requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=5)
+    except Exception as e:
+        print(f"Webhook silme uyarisi: {e}")
 
     print("APEX Bot Başlatıldı, Polling Dinleniyor...")
     app.run_polling(drop_pending_updates=True)

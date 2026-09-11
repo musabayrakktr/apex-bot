@@ -26,12 +26,12 @@ TRAILING_TRIGGER = 0.02
 TRAILING_STOP = 0.01      
 
 crypto_cache = {
-    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
-    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
-    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
-    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
-    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
-    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
+    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
+    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
+    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:SOLUSDT"},
+    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:AVAXUSDT"},
+    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:LINKUSDT"},
+    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:NEARUSDT"},
     "dolar": {"price": "0.00"},
     "gram_altin": {"price": "0.00"},
     "ceyrek_altin": {"price": "0.00"}
@@ -525,106 +525,170 @@ def background_scanner():
             print(f"Tarama hatası: {e}")
         time.sleep(20)
 
-DASHBOARD_HTML = """
+DASHBOARD_PRO_HTML = """
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX Multi-Harvester Dashboard</title>
+    <title>APEX PRO Trade Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; }
-        .title { font-size: 24px; font-weight: bold; color: #58a6ff; }
-        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
-        .bg-success { background-color: #238636; color: white; }
-        .bg-danger { background-color: #da3633; color: white; }
-        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px; text-align: center; }
-        .card-val { font-size: 22px; font-weight: bold; color: #f0f6fc; margin-top: 5px; }
-        .card-lbl { font-size: 12px; color: #8b949e; text-transform: uppercase; }
-        table { width: 100%; border-collapse: collapse; background-color: #161b22; border-radius: 8px; overflow: hidden; border: 1px solid #30363d; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #30363d; }
-        th { background-color: #21262d; color: #8b949e; font-size: 13px; }
-        .sig-green { color: #3fb950; font-weight: bold; }
-        .sig-red { color: #f85149; font-weight: bold; }
-        .sig-yellow { color: #d29922; font-weight: bold; }
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: #0b0e14; color: #e1e7ec; margin: 0; padding: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; }
+        
+        .navbar { display: flex; justify-content: space-between; align-items: center; background: #151a23; padding: 15px 25px; border-radius: 12px; border: 1px solid #222936; margin-bottom: 20px; }
+        .logo { font-size: 20px; font-weight: 700; color: #00f2fe; display: flex; align-items: center; gap: 10px; }
+        .badge { padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 13px; }
+        .badge-active { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid #00e676; }
+        .badge-inactive { background: rgba(255, 23, 68, 0.15); color: #ff1744; border: 1px solid #ff1744; }
+        
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .metric-card { background: #151a23; border: 1px solid #222936; border-radius: 12px; padding: 20px; }
+        .m-title { font-size: 12px; color: #788b9b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .m-val { font-size: 26px; font-weight: 700; margin-top: 8px; }
+        .m-green { color: #00e676; }
+        .m-blue { color: #00f2fe; }
+
+        .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px; }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+        .card-box { background: #151a23; border: 1px solid #222936; border-radius: 12px; padding: 20px; }
+        .box-head { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #f0f4f8; display: flex; justify-content: space-between; align-items: center; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #1c2330; font-size: 14px; }
+        th { color: #788b9b; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+        
+        .signal-pill { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-block; }
+        .sig-dip { background: rgba(0, 230, 118, 0.2); color: #00e676; }
+        .sig-neut { background: rgba(255, 255, 255, 0.08); color: #a0aec0; }
+        .sig-sell { background: rgba(255, 23, 68, 0.2); color: #ff1744; }
+
+        .tv-container { height: 400px; border-radius: 8px; overflow: hidden; }
+        
+        .btn-select { background: #1c2330; border: 1px solid #2d3748; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .btn-select:hover { background: #00f2fe; color: #000; }
     </style>
     <script>
         setTimeout(function(){ location.reload(); }, 15000);
+        function changeChart(symbol) {
+            document.getElementById('tv_iframe').src = "https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=" + symbol + "&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange";
+        }
     </script>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="title">🚀 APEX Multi-Harvester Dashboard</div>
-            <div class="status-badge {{ 'bg-success' if auto_enabled else 'bg-danger' }}">
-                {{ '🟢 Motor Aktif' if auto_enabled else '🔴 Motor Durduruldu' }}
+        <div class="navbar">
+            <div class="logo">⚡ APEX PRO TERMINAL</div>
+            <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
+                {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 
-        <div class="cards-grid">
-            <div class="card">
-                <div class="card-lbl">Kullanılabilir Bakiye</div>
-                <div class="card-val" style="color: #3fb950;">{{ usdt_bal }} USDT</div>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="m-title">OKX Bakiye</div>
+                <div class="m-val m-green">{{ usdt_bal }} USDT</div>
             </div>
-            <div class="card">
-                <div class="card-lbl">Toplam İşlem</div>
-                <div class="card-val">{{ stats['total_trades'] }}</div>
+            <div class="metric-card">
+                <div class="m-title">Toplam İşlem</div>
+                <div class="m-val">{{ stats['total_trades'] }}</div>
             </div>
-            <div class="card">
-                <div class="card-lbl">Başarılı İşlem</div>
-                <div class="card-val">{{ stats['successful_trades'] }}</div>
+            <div class="metric-card">
+                <div class="m-title">Başarılı İşlem</div>
+                <div class="m-val m-blue">{{ stats['successful_trades'] }}</div>
             </div>
-            <div class="card">
-                <div class="card-lbl">Toplam Oransal Kâr</div>
-                <div class="card-val" style="color: {{ '#3fb950' if stats['total_profit_pct'] >= 0 else '#f85149' }};">
+            <div class="metric-card">
+                <div class="m-title">Toplam Kâr Marjı</div>
+                <div class="m-val {{ 'm-green' if stats['total_profit_pct'] >= 0 else 'sig-sell' }}">
                     %{{ (stats['total_profit_pct'] * 100) | round(2) }}
                 </div>
             </div>
         </div>
 
-        <h3>🪙 Canlı Takip & Sinyal Paneli</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Coin</th>
-                    <th>Fiyat ($)</th>
-                    <th>RSI</th>
-                    <th>Sinyal Durumu</th>
-                    <th>Pozisyon</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for coin, data in coins.items() %}
-                <tr>
-                    <td><b>{{ coin.upper() }}</b></td>
-                    <td>{{ data['price'] }} $</td>
-                    <td>{{ data['rsi'] }}</td>
-                    <td>
-                        {% if data['rsi'] <= 32 %}
-                            <span class="sig-green">🟢 Dip Bölgesi</span>
-                        {% elif data['rsi'] >= 70 %}
-                            <span class="sig-red">🔴 Doygunluk / Satış</span>
-                        {% else %}
-                            <span>⚪ Nötr</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if states[coin] == 'BOUGHT' %}
-                            <span class="sig-green">AÇIK ({{ buy_prices[coin] }} $)</span>
-                        {% else %}
-                            <span style="color: #8b949e;">YOK</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <p style="text-align: right; font-size: 12px; color: #8b949e; margin-top: 10px;">
-            * Sayfa her 15 saniyede bir otomatik yenilenir. | USD/TL: {{ dolar }} TL
-        </p>
+        <div class="main-grid">
+            <div class="card-box">
+                <div class="box-head">
+                    <span>📈 TradingView Canlı Teknik Grafik (15m)</span>
+                </div>
+                <div class="tv-container">
+                    <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
+                </div>
+            </div>
+
+            <div class="card-box">
+                <div class="box-head">
+                    <span>🪙 Canlı Sinyal Paneli</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Coin</th>
+                            <th>Fiyat</th>
+                            <th>RSI</th>
+                            <th>Grafik</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for coin, data in coins.items() %}
+                        <tr>
+                            <td><b>{{ coin.upper() }}</b></td>
+                            <td>{{ data['price'] }} $</td>
+                            <td><b>{{ data['rsi'] }}</b></td>
+                            <td>
+                                <button class="btn-select" onclick="changeChart('{{ data['tv_symbol'] }}')">İncele</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card-box">
+            <div class="box-head">
+                <span>📋 Borsa Pozisyon & Sinyal Matrisi</span>
+                <span style="font-size: 12px; color: #788b9b;">USD/TL: {{ dolar }} TL</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Coin ID</th>
+                        <th>Canlı Fiyat</th>
+                        <th>RSI Seviyesi</th>
+                        <th>Sinyal Analizi</th>
+                        <th>Cüzdan Pozisyonu</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for coin, data in coins.items() %}
+                    <tr>
+                        <td><b>{{ coin.upper() }}</b></td>
+                        <td>{{ data['price'] }} $</td>
+                        <td>{{ data['rsi'] }}</td>
+                        <td>
+                            {% if data['rsi'] <= 33 %}
+                                <span class="signal-pill sig-dip">🟢 GÜÇLÜ DİP / ALIM</span>
+                            {% elif data['rsi'] >= 70 %}
+                                <span class="signal-pill sig-sell">🔴 DOYGUNLUK / SAT</span>
+                            {% else %}
+                                <span class="signal-pill sig-neut">⚪ NÖTR</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if states[coin] == 'BOUGHT' %}
+                                <span style="color: #00e676; font-weight: bold;">AÇIK POZİSYON ({{ buy_prices[coin] }} $)</span>
+                            {% else %}
+                                <span style="color: #788b9b;">YOK (NAKİT)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </body>
 </html>
@@ -636,7 +700,7 @@ def home():
     coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
     usdt_bal = get_usdt_balance_num()
     return render_template_string(
-        DASHBOARD_HTML,
+        DASHBOARD_PRO_HTML,
         coins=coins_data,
         usdt_bal=f"{usdt_bal:.2f}",
         stats=daily_stats,

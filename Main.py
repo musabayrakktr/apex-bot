@@ -25,7 +25,6 @@ TAKE_PROFIT_PCT = 0.035
 TRAILING_TRIGGER = 0.02   
 TRAILING_STOP = 0.01      
 
-# 5.000 TL Bütçeye Uygun Çoklu Altcoin Listesi
 crypto_cache = {
     "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
     "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0},
@@ -166,7 +165,6 @@ def calculate_rsi_and_bb(closes, period=14):
         avg_loss = (avg_loss * (period - 1) + losses[i]) / period
     rsi = 100.0 if avg_loss == 0 else round(100 - (100 / (1 + (avg_gain / avg_loss))), 1)
 
-    # Bollinger Alt Bandı Hesabı (20 Periyot)
     slice_closes = closes[-20:] if len(closes) >= 20 else closes
     sma = sum(slice_closes) / len(slice_closes)
     variance = sum([((x - sma) ** 2) for x in slice_closes]) / len(slice_closes)
@@ -224,7 +222,7 @@ def fetch_live_data():
 
 def calculate_precision_signal(rsi_val, curr_price, bb_lower):
     if rsi_val <= 32 and (bb_lower > 0 and curr_price <= bb_lower * 1.005):
-        return "🟢 ÇOKLU GÖSTERGE DİBİ (RSI + Bollinger)"
+        return "🟢 ÇOKLU GÖSTERGE DİBİ"
     elif rsi_val <= 38: return "🟢 KADEMELİ ALIM UYGUN"
     elif rsi_val >= 70: return "🔴 KESİN SATIŞ BÖLGESİ"
     elif rsi_val >= 58: return "🟡 KÂR REALİZASYONU YAKIN"
@@ -242,12 +240,10 @@ def check_auto_trade_signals():
         bb_l = crypto_cache[coin]["bb_lower"]
         inst_id = crypto_cache[coin]["inst_id"]
 
-        # ÇOKLU GÖSTERGE ALIM SİNYALİ (RSI + Bollinger Alt Bandı Desteği)
         is_strong_dip = (rsi <= 33) or (rsi <= 38 and bb_l > 0 and curr_p <= bb_l * 1.002)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             avail_usdt = get_usdt_balance_num()
-            # 5.000 TL (~150 USDT) için bakiyeyi max 3 pozisyona böler (~50 USDT/işlem)
             trade_amount = round(min(avail_usdt, 50.0), 2)
             if trade_amount >= 5.0:
                 success, msg = execute_okx_order(inst_id, "buy", sz=trade_amount, sz_type="quote_ccy")
@@ -257,11 +253,16 @@ def check_auto_trade_signals():
                     buy_prices[coin] = curr_p
                     max_prices_during_trade[coin] = curr_p
                     send_telegram(
-                        f"🚨 *MULTI-HARVESTER DİP YAKALADI! ({coin.upper()})*\n\n"
-                        f"🟢 **Sinyal:** RSI ({rsi}) & Bollinger Desteği\n"
+                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI]*\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
-                        f"💰 **Bütçe:** `{trade_amount}` USDT\n"
-                        f"🛡️ **Stop-Loss:** `%{STOP_LOSS_PCT*100:.1f}` | 🎯 **Kademeli Kâr:** `%{TAKE_PROFIT_PCT*100:.1f}`"
+                        f"💰 **Kullanılan Tutar:** `{trade_amount}` USDT\n"
+                        f"📊 **Sinyal:** RSI `{rsi}` + Bollinger Desteği\n"
+                        f"🛡️ **Stop-Loss:** `%{STOP_LOSS_PCT*100:.1f}` | 🎯 **Hedef Kâr:** `%{TAKE_PROFIT_PCT*100:.1f}`\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"⚡ *Pozisyon Otomatik Takibe Alındı!*",
+                        disable_notification=False
                     )
 
         elif last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
@@ -272,32 +273,50 @@ def check_auto_trade_signals():
             max_p = max_prices_during_trade[coin]
             drop_from_peak = (max_p - curr_p) / max_p
 
-            # 1. STOP-LOSS TETİKLENMESİ
             if pnl_pct <= -STOP_LOSS_PCT:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 daily_stats["total_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(f"🛑 *STOP-LOSS TETİKLENDİ ({coin.upper()})*\n\n📉 **Net Sonuç:** `%{pnl_pct*100:.2f}`")
+                send_telegram(
+                    f"🛑 *[İŞLEM BİLDİRİMİ: STOP-LOSS]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"📉 **Net Sonuç:** `%{pnl_pct*100:.2f}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🛡️ *Sermaye Koruma Modu Çalıştırıldı.*",
+                    disable_notification=False
+                )
 
-            # 2. KADEMELİ KÂR ALMA (%50 Satış)
             elif pnl_pct >= TAKE_PROFIT_PCT and not partial_tp_done[coin]:
                 execute_okx_order(inst_id, "sell", sz="50%", sz_type="base_ccy")
                 partial_tp_done[coin] = True
                 send_telegram(
-                    f"🎯 *KADEMELİ KÂR ALINDI! (%50 SATIŞ) ({coin.upper()})*\n\n"
-                    f"🚀 **Kilitlenen Kâr:** `+%{pnl_pct*100:.2f}`\n"
-                    f"🛡️ **Kalan %50:** İzleyen Stop (Trailing Stop) moduna geçti!"
+                    f"🎯 *[İŞLEM BİLDİRİMİ: KADEMELİ KÂR AL]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"🚀 **Kilitlenen Kâr:** `+%{pnl_pct*100:.2f}` (%50 Satış)\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🛡️ *Kalan %50 Pozisyon İzleyen Stop Moduna Geçirildi!*",
+                    disable_notification=False
                 )
 
-            # 3. İZLEYEN STOP (TRAILING STOP) ILE KALAN HİSSEYİ ZİRVEDE SATMA
             elif (max_p - entry_p) / entry_p >= TRAILING_TRIGGER and drop_from_peak >= TRAILING_STOP:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 daily_stats["total_trades"] += 1
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(f"🛡️ *ZİRVE SATIŞI / İZLEYEN STOP ({coin.upper()})*\n\n💰 **Toplam Kâr:** `+%{pnl_pct*100:.2f}`")
+                send_telegram(
+                    f"🏆 *[İŞLEM BİLDİRİMİ: ZİRVE SATIŞI]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💰 **Toplam Kâr:** `+%{pnl_pct*100:.2f}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚡ *İzleyen Stop Zirveden Satış Yaptı!*",
+                    disable_notification=False
+                )
 
 def check_instant_movement():
     global last_alert_prices
@@ -379,10 +398,13 @@ def generate_analiz_report():
     
     msg += f"\n💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL\n\n"
     
+    # Dakika + Saniye Detaylı Geri Sayım
     elapsed = time.time() - last_report_time
-    remaining_sec = max(0, REPORT_INTERVAL - elapsed)
-    remaining_min = int(remaining_sec // 60)
-    msg += f"⏳ *Sonraki Otomatik Rapor:* ~`{remaining_min}` dk kaldı"
+    remaining_sec = max(0, int(REPORT_INTERVAL - elapsed))
+    rem_min = remaining_sec // 60
+    rem_sec = remaining_sec % 60
+    
+    msg += f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` kaldı"
     return msg
 
 def handle_message(raw_text, chat_id):
@@ -498,7 +520,8 @@ def background_scanner():
 
             if time.time() - last_report_time >= REPORT_INTERVAL:
                 last_report_time = time.time()
-                send_telegram(generate_analiz_report(), disable_notification=True)
+                # Sesli ve Kesin Bildirim ile Otomatik Rapor Gönderimi
+                send_telegram(generate_analiz_report(), disable_notification=False)
 
         except Exception as e:
             print(f"Tarama hatası: {e}")

@@ -221,11 +221,12 @@ def fetch_live_data():
         print(f"Borsa Kur Hatası: {e}")
 
 def calculate_precision_signal(rsi_val, curr_price, bb_lower):
-    if rsi_val <= 32 and (bb_lower > 0 and curr_price <= bb_lower * 1.005):
+    # ESNETİLMİŞ RSI EŞİKLERİ (Botun daha rahat işlem alması için)
+    if rsi_val <= 42 and (bb_lower > 0 and curr_price <= bb_lower * 1.01):
         return "🟢 ÇOKLU GÖSTERGE DİBİ"
-    elif rsi_val <= 38: return "🟢 KADEMELİ ALIM UYGUN"
-    elif rsi_val >= 70: return "🔴 KESİN SATIŞ BÖLGESİ"
-    elif rsi_val >= 58: return "🟡 KÂR REALİZASYONU YAKIN"
+    elif rsi_val <= 48: return "🟢 KADEMELİ ALIM UYGUN"
+    elif rsi_val >= 68: return "🔴 KESİN SATIŞ BÖLGESİ"
+    elif rsi_val >= 55: return "🟡 KÂR REALİZASYONU YAKIN"
     else: return "⚪ NÖTR (Sermaye Koruma)"
 
 def check_auto_trade_signals():
@@ -240,7 +241,8 @@ def check_auto_trade_signals():
         bb_l = crypto_cache[coin]["bb_lower"]
         inst_id = crypto_cache[coin]["inst_id"]
 
-        is_strong_dip = (rsi <= 33) or (rsi <= 38 and bb_l > 0 and curr_p <= bb_l * 1.002)
+        # ESNETİLMİŞ ALIM KOŞULU (Artık piyasa daha kolay tetiklenecek)
+        is_strong_dip = (rsi <= 45) or (rsi <= 48 and bb_l > 0 and curr_p <= bb_l * 1.008)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             avail_usdt = get_usdt_balance_num()
@@ -253,7 +255,7 @@ def check_auto_trade_signals():
                     buy_prices[coin] = curr_p
                     max_prices_during_trade[coin] = curr_p
                     send_telegram(
-                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI]*\n"
+                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI (ESNEK MOD)]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
@@ -414,8 +416,8 @@ def handle_message(raw_text, chat_id):
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
         start_msg = (
-            "🚀 *APEX MULTI-HARVESTER DEVREDE!*\n\n"
-            "Hoş geldin patron! 5.000 TL Çoklu Altcoin Sepeti (BTC, ETH, SOL, AVAX, LINK, NEAR), RSI + Bollinger çoklu gösterge süzgeci ve kademeli kâr alma motoru aktif.\n\n"
+            "🚀 *APEX MULTI-HARVESTER DEVREDE (ESNEK MOD)*\n\n"
+            "Hoş geldin patron! 5.000 TL Çoklu Altcoin Sepeti (BTC, ETH, SOL, AVAX, LINK, NEAR), güncellenmiş esnek RSI süzgeci ve kademeli kâr alma motoru aktif.\n\n"
             "📌 Menüden komutlara erişebilirsin."
         )
         send_telegram(start_msg, chat_id)
@@ -482,7 +484,7 @@ def handle_message(raw_text, chat_id):
     elif text in ["/ceyrek", "çeyrek"]:
         send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
     elif text in ["/test", "test"]:
-        send_telegram("✅ *Multi-Harvester Sistem Tamamen Aktif!*", chat_id)
+        send_telegram("✅ *Multi-Harvester Esnek Mod Tamamen Aktif!*", chat_id)
 
 def telegram_polling_listener():
     offset = 0
@@ -583,7 +585,7 @@ DASHBOARD_PRO_HTML = """
         <div class="navbar">
             <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
+                {{ '🟢 BOT AKTİF (ESNEK)' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 
@@ -669,9 +671,9 @@ DASHBOARD_PRO_HTML = """
                         <td>{{ data['price'] }} $</td>
                         <td>{{ data['rsi'] }}</td>
                         <td>
-                            {% if data['rsi'] <= 33 %}
+                            {% if data['rsi'] <= 45 %}
                                 <span class="signal-pill sig-dip">🟢 GÜÇLÜ DİP / ALIM</span>
-                            {% elif data['rsi'] >= 70 %}
+                            {% elif data['rsi'] >= 68 %}
                                 <span class="signal-pill sig-sell">🔴 DOYGUNLUK / SAT</span>
                             {% else %}
                                 <span class="signal-pill sig-neut">⚪ NÖTR</span>

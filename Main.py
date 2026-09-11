@@ -337,12 +337,19 @@ def generate_analiz_report():
     fetch_live_data()
     btc_p, eth_p, sol_p = crypto_cache['bitcoin']['price'], crypto_cache['ethereum']['price'], crypto_cache['solana']['price']
     btc_r, eth_r, sol_r = crypto_cache['bitcoin']['rsi'], crypto_cache['ethereum']['rsi'], crypto_cache['solana']['rsi']
+    
+    # 15 Dakikalık Sayacın Kalan Süresi
+    elapsed = time.time() - last_report_time
+    remaining_sec = max(0, REPORT_INTERVAL - elapsed)
+    remaining_min = int(remaining_sec // 60)
+    
     return (
         f"📡 *APEX CANLI PİYASA ANALİZİ*\n\n"
         f"🪙 **BTC:** `{btc_p}` $ | RSI: `{btc_r}` -> *{calculate_precision_signal(btc_r)}*\n"
         f"🪙 **ETH:** `{eth_p}` $ | RSI: `{eth_r}` -> *{calculate_precision_signal(eth_r)}*\n"
         f"🪙 **SOL:** `{sol_p}` $ | RSI: `{sol_r}` -> *{calculate_precision_signal(sol_r)}*\n"
-        f"💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL"
+        f"💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL\n\n"
+        f"⏳ *Sonraki Otomatik Rapor:* ~`{remaining_min}` dk kaldı"
     )
 
 def handle_message(raw_text, chat_id):

@@ -6,7 +6,7 @@ import ccxt
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- 1. BOT AYARLARI ---
+# --- 1. AYARLAR & PARİTELER ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 

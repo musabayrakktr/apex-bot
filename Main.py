@@ -7,9 +7,12 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime, timezone
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request, session, redirect, url_for
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "apex_pro_super_secret_key_260526")
+
+PIN_CODE = "260526"
 
 TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
 CHAT_ID = "8982017587"
@@ -525,6 +528,43 @@ def background_scanner():
             print(f"Tarama hatası: {e}")
         time.sleep(20)
 
+LOGIN_HTML = """
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX PRO - VIP Giriş</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: #0b0e14; color: #fff; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+        .login-card { background: #151a23; border: 1px solid #222936; border-radius: 16px; padding: 35px 30px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0, 242, 254, 0.1); }
+        .logo { font-size: 22px; font-weight: 700; color: #00f2fe; margin-bottom: 8px; }
+        .subtitle { font-size: 13px; color: #788b9b; margin-bottom: 25px; }
+        input[type="password"] { width: 100%; background: #0b0e14; border: 1px solid #2d3748; padding: 14px; border-radius: 8px; color: #00f2fe; font-size: 18px; text-align: center; letter-spacing: 4px; margin-bottom: 20px; outline: none; }
+        input[type="password"]:focus { border-color: #00f2fe; }
+        button { width: 100%; background: #00f2fe; color: #000; border: none; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #00e676; }
+        .error { color: #ff1744; font-size: 13px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">⚡ APEX PRO TERMINAL</div>
+        <div class="subtitle">VIP Private Access Girişi</div>
+        <form method="POST" action="/login">
+            <input type="password" name="pin" placeholder="PIN GIRINIZ" autofocus required maxlength="10">
+            <button type="submit">SİSTEME GİRİŞ YAP</button>
+        </form>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+    </div>
+</body>
+</html>
+"""
+
 DASHBOARD_PRO_HTML = """
 <!DOCTYPE html>
 <html lang="tr">
@@ -576,6 +616,7 @@ DASHBOARD_PRO_HTML = """
         
         .btn-select { background: #1c2330; border: 1px solid #2d3748; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
         .btn-select:hover { background: #00f2fe; color: #000; }
+        .btn-logout { color: #ff1744; text-decoration: none; font-size: 12px; font-weight: 600; border: 1px solid #ff1744; padding: 4px 10px; border-radius: 6px; }
     </style>
     <script>
         setTimeout(function(){ location.reload(); }, 15000);
@@ -588,12 +629,14 @@ DASHBOARD_PRO_HTML = """
     <div class="container">
         <div class="navbar">
             <div class="logo">⚡ APEX PRO TERMINAL</div>
-            <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
+                    {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
+                </div>
+                <a href="/logout" class="btn-logout">🔒 ÇIKIŞ</a>
             </div>
         </div>
 
-        <!-- SANA ÖZEL TRADER KİMLİK KARTI -->
         <div class="user-card">
             <div class="user-info">
                 <div class="user-avatar">P</div>
@@ -635,7 +678,7 @@ DASHBOARD_PRO_HTML = """
                     <span>📈 TradingView Canlı Teknik Grafik (15m)</span>
                 </div>
                 <div class="tv-container">
-                    <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
+                    <iframe id="tv_iframe" src="url?id=0" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
                 </div>
             </div>
 
@@ -715,8 +758,28 @@ DASHBOARD_PRO_HTML = """
 </html>
 """
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        user_pin = request.form.get('pin', '').strip()
+        if user_pin == PIN_CODE:
+            session['logged_in'] = True
+            return redirect(url_for('home'))
+        else:
+            error = "❌ Hatalı PIN Girdiniz!"
+    return render_template_string(LOGIN_HTML, error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
 @app.route('/')
 def home():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    
     fetch_live_data()
     coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
     usdt_bal = get_usdt_balance_num()

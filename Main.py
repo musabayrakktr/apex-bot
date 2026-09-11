@@ -1,12 +1,31 @@
 import os
 import time
 import asyncio
+import threading
 import requests
 import ccxt
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- 1. AYARLAR & PARİTELER ---
+# --- 1. RENDER PORT DİNLEYİCİSİ (ÇÖKMEYİ ENGELLEYEN KISIM) ---
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"APEX Bot Canli!")
+
+    def log_message(self, format, *args):
+        return  # Log kirliliğini önler
+
+def run_health_check_server():
+    port = int(os.environ.get("PORT", 10000))
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    httpd.serve_forever()
+
+# --- 2. BOT AYARLARI & PARİTELER ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -85,6 +104,9 @@ async def cmd_cuzdan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Cüzdan hatası: {e}")
 
 def main():
+    # Render'ın kilitlenmesini engelleyen port sunucusu
+    threading.Thread(target=run_health_check_server, daemon=True).start()
+
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))

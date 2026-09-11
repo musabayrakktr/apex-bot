@@ -678,7 +678,7 @@ DASHBOARD_PRO_HTML = """
                     <span>📈 TradingView Canlı Teknik Grafik (15m)</span>
                 </div>
                 <div class="tv-container">
-                    <iframe id="tv_iframe" src="url?id=0" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
+                    <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
                 </div>
             </div>
 

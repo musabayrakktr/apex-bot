@@ -11,7 +11,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(b"APEX Bot Tam Donanimli Canli!")
+        self.wfile.write(b"APEX Bot Full Al-Sat Canli!")
 
     def log_message(self, format, *args):
         return
@@ -42,7 +42,7 @@ exchange = ccxt.okx({
 
 historical_rsi = {s: [] for s in SYMBOLS}
 last_alert_status = {s: False for s in SYMBOLS}
-bot_active = True  # Otomatik emir/tarama anahtarı
+bot_active = True
 
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
@@ -119,7 +119,6 @@ def execute_order(symbol, side, amount):
     except Exception as e:
         return False, str(e)
 
-# --- 3. OTOMATİK ARKA PLAN TARAYICISI ---
 def background_market_scanner():
     global bot_active
     print("APEX Otomatik Tarayıcı Aktif...")
@@ -141,7 +140,6 @@ def background_market_scanner():
             print(f"Tarayıcı hata: {e}")
         time.sleep(300)
 
-# --- 4. TELEGRAM KOMUT DİNLEYİCİSİ ---
 def handle_updates():
     global bot_active
     set_telegram_commands()
@@ -202,7 +200,8 @@ def handle_updates():
                             send_telegram_message("⚠️ BTC verisi alınamadı.", chat_id=chat_id)
                     
                     elif text_lower == "/alarmlar":
-                        send_telegram_message(f"🚨 AKTİF ALARMLAR\n\nEşik Değeri: RSI <= {BUY_RSI_THRESHOLD}\nDurum: {'Aktif (Çalışıyor)'Â if bot_active else 'Durduruldu'}", chat_id=chat_id)
+                        status_str = "Aktif (Çalışıyor)" if bot_active else "Durduruldu"
+                        send_telegram_message(f"🚨 AKTİF ALARMLAR\n\nEşik Değeri: RSI <= {BUY_RSI_THRESHOLD}\nDurum: {status_str}", chat_id=chat_id)
                     
                     elif text_lower.startswith("/al "):
                         parts = text.split()

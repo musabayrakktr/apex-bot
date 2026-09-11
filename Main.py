@@ -1,22 +1,26 @@
 import os
+import time
 import asyncio
 import threading
 import requests
 import ccxt
-from flask import Flask
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- 1. RENDER PORT DİNLEYİCİSİ (FLASK) ---
-app_flask = Flask(__name__)
+# --- 1. SIFIR BAĞIMLILIK HTTP DİNLEYİCİSİ (RENDER İÇİN) ---
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"APEX Bot Canli!")
 
-@app_flask.route('/')
-def health_check():
-    return "APEX Bot Canlı!", 200
-
-def run_flask():
+def run_health_check_server():
     port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host='0.0.0.0', port=port)
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+    httpd.serve_forever()
 
 # --- 2. BOT AYARLARI & PARİTELER ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -108,8 +112,8 @@ async def cmd_set_rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Örnek kullanım: `/set_rsi 28`", parse_mode="Markdown")
 
 def main():
-    # Render Port dinleyicisini arka planda başlat
-    threading.Thread(target=run_flask, daemon=True).start()
+    # Render HTTP sunucusunu arka planda başlat
+    threading.Thread(target=run_health_check_server, daemon=True).start()
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 

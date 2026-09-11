@@ -114,5 +114,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("analiz", cmd_analiz))
     app.add_handler(CommandHandler("cuzdan", cmd_cuzdan))
 
+    # Eski takılı kalmış webhook ve güncellemeleri temizle
+    requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true")
+
     print("APEX Bot Başlatıldı, Polling Dinleniyor...")
     app.run_polling(drop_pending_updates=True)

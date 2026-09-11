@@ -7,6 +7,9 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime, timezone
+from flask import Flask
+
+app = Flask(__name__)
 
 TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
 CHAT_ID = "8982017587"
@@ -439,7 +442,6 @@ def handle_message(raw_text, chat_id):
 
 def telegram_polling_listener():
     offset = 0
-    # Telegram'daki eski silinmemiş webhook takılmalarını doğrudan temizliyoruz
     try:
         urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
     except Exception as e:
@@ -479,6 +481,13 @@ def background_scanner():
             print(f"Tarama hatası: {e}")
         time.sleep(20)
 
+@app.route('/')
+def home():
+    return "APEX Trade Motoru Aktif!"
+
 if __name__ == '__main__':
     threading.Thread(target=background_scanner, daemon=True).start()
-    telegram_polling_listener()
+    threading.Thread(target=telegram_polling_listener, daemon=True).start()
+    
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)

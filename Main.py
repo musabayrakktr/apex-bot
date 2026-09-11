@@ -544,6 +544,12 @@ DASHBOARD_PRO_HTML = """
         .badge-active { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid #00e676; }
         .badge-inactive { background: rgba(255, 23, 68, 0.15); color: #ff1744; border: 1px solid #ff1744; }
         
+        .user-card { background: linear-gradient(135deg, #1e2638, #151a23); border: 1px solid #2d3748; border-radius: 12px; padding: 15px 25px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .user-avatar { width: 45px; height: 45px; background: #00f2fe; color: #000; border-radius: 50%; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .user-details .u-name { font-size: 16px; font-weight: 700; color: #fff; }
+        .user-details .u-role { font-size: 12px; color: #00e676; font-weight: 600; }
+
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .metric-card { background: #151a23; border: 1px solid #222936; border-radius: 12px; padding: 20px; }
         .m-title { font-size: 12px; color: #788b9b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
@@ -584,6 +590,21 @@ DASHBOARD_PRO_HTML = """
             <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
                 {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
+            </div>
+        </div>
+
+        <!-- SANA ÖZEL TRADER KİMLİK KARTI -->
+        <div class="user-card">
+            <div class="user-info">
+                <div class="user-avatar">P</div>
+                <div class="user-details">
+                    <div class="u-name">👑 PATRON (VIP PRIVATE ACCESS)</div>
+                    <div class="u-role">Özel Algoritmik Ticaret Hesabı | OKX API Entegre</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: #788b9b; text-align: right;">
+                <b>Lisans Durumu:</b> <span style="color: #00f2fe;">ÖMÜR BOYU DOĞRULANDI</span><br>
+                <b>Son Akış:</b> {{ last_update }}
             </div>
         </div>
 
@@ -699,6 +720,7 @@ def home():
     fetch_live_data()
     coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
     usdt_bal = get_usdt_balance_num()
+    now_str = datetime.now(timezone.utc).strftime('%H:%M:%S UTC')
     return render_template_string(
         DASHBOARD_PRO_HTML,
         coins=coins_data,
@@ -707,7 +729,8 @@ def home():
         states=last_trade_state,
         buy_prices=buy_prices,
         auto_enabled=AUTO_TRADE_ENABLED,
-        dolar=crypto_cache['dolar']['price']
+        dolar=crypto_cache['dolar']['price'],
+        last_update=now_str
     )
 
 if __name__ == '__main__':

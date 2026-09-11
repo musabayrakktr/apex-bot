@@ -7,7 +7,7 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime, timezone
-from flask import Flask
+from flask import Flask, render_template_string
 
 app = Flask(__name__)
 
@@ -398,7 +398,6 @@ def generate_analiz_report():
     
     msg += f"\n💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL\n\n"
     
-    # Dakika + Saniye Detaylı Geri Sayım
     elapsed = time.time() - last_report_time
     remaining_sec = max(0, int(REPORT_INTERVAL - elapsed))
     rem_min = remaining_sec // 60
@@ -520,16 +519,132 @@ def background_scanner():
 
             if time.time() - last_report_time >= REPORT_INTERVAL:
                 last_report_time = time.time()
-                # Sesli ve Kesin Bildirim ile Otomatik Rapor Gönderimi
                 send_telegram(generate_analiz_report(), disable_notification=False)
 
         except Exception as e:
             print(f"Tarama hatası: {e}")
         time.sleep(20)
 
+DASHBOARD_HTML = """
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX Multi-Harvester Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 15px; margin-bottom: 20px; }
+        .title { font-size: 24px; font-weight: bold; color: #58a6ff; }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        .bg-success { background-color: #238636; color: white; }
+        .bg-danger { background-color: #da3633; color: white; }
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 15px; text-align: center; }
+        .card-val { font-size: 22px; font-weight: bold; color: #f0f6fc; margin-top: 5px; }
+        .card-lbl { font-size: 12px; color: #8b949e; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; background-color: #161b22; border-radius: 8px; overflow: hidden; border: 1px solid #30363d; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #30363d; }
+        th { background-color: #21262d; color: #8b949e; font-size: 13px; }
+        .sig-green { color: #3fb950; font-weight: bold; }
+        .sig-red { color: #f85149; font-weight: bold; }
+        .sig-yellow { color: #d29922; font-weight: bold; }
+    </style>
+    <script>
+        setTimeout(function(){ location.reload(); }, 15000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">🚀 APEX Multi-Harvester Dashboard</div>
+            <div class="status-badge {{ 'bg-success' if auto_enabled else 'bg-danger' }}">
+                {{ '🟢 Motor Aktif' if auto_enabled else '🔴 Motor Durduruldu' }}
+            </div>
+        </div>
+
+        <div class="cards-grid">
+            <div class="card">
+                <div class="card-lbl">Kullanılabilir Bakiye</div>
+                <div class="card-val" style="color: #3fb950;">{{ usdt_bal }} USDT</div>
+            </div>
+            <div class="card">
+                <div class="card-lbl">Toplam İşlem</div>
+                <div class="card-val">{{ stats['total_trades'] }}</div>
+            </div>
+            <div class="card">
+                <div class="card-lbl">Başarılı İşlem</div>
+                <div class="card-val">{{ stats['successful_trades'] }}</div>
+            </div>
+            <div class="card">
+                <div class="card-lbl">Toplam Oransal Kâr</div>
+                <div class="card-val" style="color: {{ '#3fb950' if stats['total_profit_pct'] >= 0 else '#f85149' }};">
+                    %{{ (stats['total_profit_pct'] * 100) | round(2) }}
+                </div>
+            </div>
+        </div>
+
+        <h3>🪙 Canlı Takip & Sinyal Paneli</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Coin</th>
+                    <th>Fiyat ($)</th>
+                    <th>RSI</th>
+                    <th>Sinyal Durumu</th>
+                    <th>Pozisyon</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coin, data in coins.items() %}
+                <tr>
+                    <td><b>{{ coin.upper() }}</b></td>
+                    <td>{{ data['price'] }} $</td>
+                    <td>{{ data['rsi'] }}</td>
+                    <td>
+                        {% if data['rsi'] <= 32 %}
+                            <span class="sig-green">🟢 Dip Bölgesi</span>
+                        {% elif data['rsi'] >= 70 %}
+                            <span class="sig-red">🔴 Doygunluk / Satış</span>
+                        {% else %}
+                            <span>⚪ Nötr</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if states[coin] == 'BOUGHT' %}
+                            <span class="sig-green">AÇIK ({{ buy_prices[coin] }} $)</span>
+                        {% else %}
+                            <span style="color: #8b949e;">YOK</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="text-align: right; font-size: 12px; color: #8b949e; margin-top: 10px;">
+            * Sayfa her 15 saniyede bir otomatik yenilenir. | USD/TL: {{ dolar }} TL
+        </p>
+    </div>
+</body>
+</html>
+"""
+
 @app.route('/')
 def home():
-    return "APEX Multi-Harvester Aktif!"
+    fetch_live_data()
+    coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
+    usdt_bal = get_usdt_balance_num()
+    return render_template_string(
+        DASHBOARD_HTML,
+        coins=coins_data,
+        usdt_bal=f"{usdt_bal:.2f}",
+        stats=daily_stats,
+        states=last_trade_state,
+        buy_prices=buy_prices,
+        auto_enabled=AUTO_TRADE_ENABLED,
+        dolar=crypto_cache['dolar']['price']
+    )
 
 if __name__ == '__main__':
     threading.Thread(target=background_scanner, daemon=True).start()

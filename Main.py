@@ -1,12 +1,24 @@
 import os
-import time
 import asyncio
+import threading
 import requests
 import ccxt
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- 1. AYARLAR & PARİTELER ---
+# --- 1. RENDER PORT DİNLEYİCİSİ (FLASK) ---
+app_flask = Flask(__name__)
+
+@app_flask.route('/')
+def health_check():
+    return "APEX Bot Canlı!", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port)
+
+# --- 2. BOT AYARLARI & PARİTELER ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
@@ -58,7 +70,7 @@ def predict_trend(symbol_rsi_history):
         return "🔮 YATAY SEYİR! Sakin piyasa."
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 APEX YAYINDA! Yapay zeka tahmin motoru ve 5 parite aktif kanka.")
+    await update.message.reply_text("🤖 **APEX YAYINDA!** Yapay zeka tahmin motoru ve 5 parite aktif kanka.")
 
 async def cmd_analiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "📡 **APEX CANLI PİYASA & TAHMİN RAPORU**\n\n"
@@ -96,6 +108,9 @@ async def cmd_set_rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Örnek kullanım: `/set_rsi 28`", parse_mode="Markdown")
 
 def main():
+    # Render Port dinleyicisini arka planda başlat
+    threading.Thread(target=run_flask, daemon=True).start()
+
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))

@@ -6,7 +6,7 @@ import requests
 import ccxt
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- 1. RENDER PORT DİNLEYİCİSİ ---
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -103,17 +103,16 @@ async def cmd_cuzdan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"⚠️ Cüzdan hatası: {e}")
 
-def main():
+if __name__ == "__main__":
+    # Render Port dinleyicisini başlat
     threading.Thread(target=run_health_check_server, daemon=True).start()
 
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # Telegram Bot Kurulumu
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("analiz", cmd_analiz))
     app.add_handler(CommandHandler("cuzdan", cmd_cuzdan))
 
-    print("APEX Bot Başlatıldı...")
+    print("APEX Bot Başlatıldı, Polling Dinleniyor...")
     app.run_polling(drop_pending_updates=True)
-
-if __name__ == "__main__":
-    main()

@@ -2,7 +2,6 @@ import os
 import time
 import asyncio
 import threading
-import requests
 import ccxt
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
@@ -25,7 +24,7 @@ def run_health_check_server():
     httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
     httpd.serve_forever()
 
-# --- 2. DOĞRUDAN TANIMLI BİLGİLER ---
+# --- 2. BOT AYARLARI ---
 TELEGRAM_BOT_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
 TELEGRAM_CHAT_ID = "8982017587"
 
@@ -111,11 +110,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("analiz", cmd_analiz))
     app.add_handler(CommandHandler("cuzdan", cmd_cuzdan))
-
-    try:
-        requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=5)
-    except Exception as e:
-        print(f"Webhook silme uyarisi: {e}")
 
     print("APEX Bot Başlatıldı, Polling Dinleniyor...")
     app.run_polling(drop_pending_updates=True)

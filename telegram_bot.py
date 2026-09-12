@@ -4,9 +4,10 @@ from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
 from market import get_live_market_data
 
 def set_telegram_commands():
-    """Bot menü butonlarını Telegram'a kaydeder"""
+    """Bot menü butonlarını Telegram'a yükler (Start Dahil)"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
+        {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
         {"command": "cuzdan", "description": "💰 OKX TR Cüzdan Bakiye Durumu"},
         {"command": "analiz", "description": "📈 5m & 15m Piyasa Analiz Raporu"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},

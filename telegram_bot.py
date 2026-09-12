@@ -24,6 +24,7 @@ def handle_message(raw_text, chat_id):
             "🔹 `/cuzdan` - Güncel bakiye durumu\n"
             "🔹 `/analiz` - 5m & 15m piyasa raporu\n"
             "🔹 `/piyasa` - Dolar, Gram ve Çeyrek Altın kurları\n"
+            "🔹 `/rapor` - Genel sistem ve piyasa özeti\n"
             "🔹 `/gecmis` - Geçmiş işlem dökümü",
             chat_id
         )
@@ -60,10 +61,21 @@ def handle_message(raw_text, chat_id):
             f"🕒 *Veri Kaynağı:* Anlık Takip Modülü",
             chat_id
         )
+    elif text == "/rapor":
+        m = get_live_market_data()
+        send_telegram(
+            f"📊 *APEX GENEL DURUM RAPORU*\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 *Kasa:* `19.71 USDT`\n"
+            f"🪙 *BTC Fiyat:* `{m['btc_fiyat']}`\n"
+            f"💵 *Dolar:* `{m['dolar']}` | 🟡 *Altın:* `{m['gram_altin']}`\n"
+            f"🛡️ *Sistem:* Modüler Altyapı Aktif 🚀",
+            chat_id
+        )
     elif text == "/gecmis":
         gecmis_metni = "📜 *GEÇMİŞ İŞLEM GEÇMİŞİ*\n━━━━━━━━━━━━━━━━━━━\n"
         for t in TRADE_HISTORY:
             gecmis_metni += f"🔹 *{t['parite']}* | {t['islem']} *{t['tutar']}* ({t['oran']})\n   🕒 _{t['zaman']}_\n\n"
         send_telegram(gecmis_metni, chat_id)
     else:
-        send_telegram(f"Mesaj alındı: {raw_text}", chat_id)
+        send_telegram(f"Bilinmeyen komut: {raw_text}\nKomut listesi için /start yazabilirsin.", chat_id)

@@ -20,11 +20,11 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 AUTO_TRADE_ENABLED = True
 
-# --- RİSK VE SEPET YÖNETİMİ ---
-STOP_LOSS_PCT = 0.02      # %2 Stop-Loss
-TAKE_PROFIT_PCT = 0.04    # %4 Kâr Al
-TRAILING_TRIGGER = 0.02   
-TRAILING_STOP = 0.01      
+# --- HIZLI SKALPING VEYA RİSK YÖNETİMİ ---
+STOP_LOSS_PCT = 0.015     # %1.5 Stop-Loss
+TAKE_PROFIT_PCT = 0.010   # %1.0 Hızlı Kâr Al (Skalping)
+TRAILING_TRIGGER = 0.010  # %1.0 Kâr görünce izlemeye başla
+TRAILING_STOP = 0.005     # %0.5 Tepeden çekilirse sat
 
 crypto_cache = {
     "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
@@ -38,7 +38,6 @@ crypto_cache = {
     "ceyrek_altin": {"price": "0.00"}
 }
 
-last_alert_prices = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 last_trade_state = {k: "NEUTRAL" for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 partial_tp_done = {k: False for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 buy_prices = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
@@ -46,9 +45,7 @@ trade_amounts = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin"
 max_prices_during_trade = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 
 daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
-custom_target_alerts = {}
-last_report_time = time.time()
-REPORT_INTERVAL = 900  
+trade_history = []  # Geçmiş İşlem Kayıt Defteri
 
 def send_telegram(message, chat_id=CHAT_ID, disable_notification=False):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -74,19 +71,9 @@ def set_telegram_commands():
         {"command": "start", "description": "🤖 Botu Başlat ve Menüyü Gör"},
         {"command": "analiz", "description": "📈 Akıllı Çoklu Gösterge Piyasası"},
         {"command": "cuzdan", "description": "💼 OKX TR Cüzdan Bakiyesini Gör"},
-        {"command": "rapor", "description": "📊 Performans Özeti"},
-        {"command": "alarm", "description": "🔔 Fiyat Alarmı Kur"},
-        {"command": "alarmlar", "description": "📋 Kurulu Aktif Alarmlar"},
-        {"command": "alarmsil", "description": "🗑️ Alarm Sil"},
+        {"command": "rapor", "description": "📊 Geçmiş İşlemler ve Performans"},
         {"command": "stop", "description": "🛑 Oto Motoru Durdur"},
-        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"},
-        {"command": "btc", "description": "🪙 Bitcoin Anlık"},
-        {"command": "eth", "description": "🪙 Ethereum Anlık"},
-        {"command": "sol", "description": "🪙 Solana Anlık"},
-        {"command": "dolar", "description": "💵 USD/TL Kuru"},
-        {"command": "gram", "description": "🥇 Gram Altın"},
-        {"command": "ceyrek", "description": "🥇 Çeyrek Altın"},
-        {"command": "test", "description": "🧪 Bağlantı Testi"}
+        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"}
     ]
     payload = {"commands": commands}
     data = json.dumps(payload).encode('utf-8')
@@ -206,7 +193,7 @@ def fetch_okx_ticker_and_indicators(inst_id):
                 price = float(ticker_data["last"])
                 low_24h = float(ticker_data.get("low24h", price))
                 high_24h = float(ticker_data.get("high24h", price))
-        url_candles = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar=15m&limit=30"
+        url_candles = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar=5m&limit=30" # 5 Dakikalık Hızlı Mumlar
         req_c = urllib.request.Request(url_candles, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_c, timeout=5) as response:
             res_c = json.loads(response.read().decode())
@@ -253,15 +240,14 @@ def fetch_live_data():
         print(f"Borsa Kur Hatası: {e}")
 
 def calculate_precision_signal(rsi_val, curr_price, bb_lower):
-    if rsi_val <= 45 and (bb_lower > 0 and curr_price <= bb_lower * 1.01):
-        return "🟢 ÇOKLU GÖSTERGE DİBİ"
-    elif rsi_val <= 50: return "🟢 KADEMELİ ALIM UYGUN"
+    if rsi_val <= 45: return "🟢 GÜÇLÜ ALIM BÖLGESİ"
+    elif rsi_val <= 53: return "🟢 KADEMELİ SKALPING ALIMI"
     elif rsi_val >= 68: return "🔴 KESİN SATIŞ BÖLGESİ"
-    elif rsi_val >= 55: return "🟡 KÂR REALİZASYONU YAKIN"
-    else: return "⚪ NÖTR (Sermaye Koruma)"
+    elif rsi_val >= 58: return "🟡 KÂR ALIM YAKIN"
+    else: return "⚪ NÖTR"
 
 def check_auto_trade_signals():
-    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, partial_tp_done, trade_amounts
+    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, partial_tp_done, trade_amounts, trade_history
     if not AUTO_TRADE_ENABLED:
         return
     
@@ -284,8 +270,8 @@ def check_auto_trade_signals():
         is_near_24h_low = (l24 > 0 and curr_p <= l24 * 1.02)
         is_near_24h_high = (h24 > 0 and curr_p >= h24 * 0.985)
 
-        # ESNEK ALIM MANTIĞI: (24s Dibi VEYA RSI Dip VEYA Bollinger Alt Bandı Teması)
-        is_strong_dip = is_near_24h_low or (rsi <= 45) or (bb_l > 0 and curr_p <= bb_l * 1.01)
+        # HIZLI SKALPING ALIM ŞARTI (RSI <= 53 VEYA 24s Dibi VEYA Destek Teması)
+        is_strong_dip = is_near_24h_low or (rsi <= 53) or (bb_l > 0 and curr_p <= bb_l * 1.01)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             if avail_usdt >= trade_amount and trade_amount >= 5.0:
@@ -298,15 +284,13 @@ def check_auto_trade_signals():
                     max_prices_during_trade[coin] = curr_p
                     daily_stats["total_trades"] += 1
                     send_telegram(
-                        f"🚨 *[KÂR FIRSATI / DESTEK ALIMI]*\n"
+                        f"🚨 *[SKALPING / HIZLI ALIM]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
-                        f"🎯 **Test Edilen Destek Çizgisi:** `{supp:,.2f}` $\n"
-                        f"📉 **24 Saatin En Düşüğü:** `{l24:,.2f}` $\n"
+                        f"🎯 **Destek Çizgisi:** `{supp:,.2f}` $\n"
                         f"💰 **Sepet Bütçesi:** `{trade_amount}` USDT\n"
-                        f"📊 **RSI:** `{rsi}`\n"
-                        f"━━━━━━━━━━━━━━━━━━━",
+                        f"📊 **RSI:** `{rsi}`",
                         disable_notification=False
                     )
 
@@ -324,79 +308,62 @@ def check_auto_trade_signals():
             max_p = max_prices_during_trade[coin]
             drop_from_peak = (max_p - curr_p) / max_p
 
+            sold = False
+            reason = ""
+
             if pnl_pct <= -STOP_LOSS_PCT:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
-                last_trade_state[coin] = "NEUTRAL"
-                daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(
-                    f"🛡️ *[ZARAR ETMEMEK İÇİN SATILDI (STOP-LOSS)]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
-                    f"📉 **Yüzdesel Sonuç:** `%{pnl_pct*100:.2f}`\n"
-                    f"💸 **Net Zarar:** `{tl_str}`\n"
-                    f"💬 **Açıklama:** Fiyat %2 altına düştü, daha büyük zararı önlemek için robot otomatik sattı!\n"
-                    f"━━━━━━━━━━━━━━━━━━━",
-                    disable_notification=False
-                )
+                sold = True
+                reason = "Stop Loss (%1.5 Z) 🛡️"
 
-            elif rsi >= 70 or is_near_24h_high:
+            elif rsi >= 65 or is_near_24h_high:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
-                last_trade_state[coin] = "NEUTRAL"
-                if pnl_pct > 0: daily_stats["successful_trades"] += 1
-                daily_stats["total_profit_pct"] += pnl_pct
-                reason_str = "RSI TAVAN SEVİYESİNE ULAŞTI" if rsi >= 70 else "24S EN YÜKSEK SEVİYESİNE YAKLAŞILDI"
-                send_telegram(
-                    f"🔴 *[{reason_str} - SATIŞ YAPILDI]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
-                    f"📊 **RSI Seviyesi:** `{rsi}`\n"
-                    f"📈 **24 Saatin En Yükseği:** `{h24:,.2f}` $\n"
-                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
-                    f"💰 **Net Kazanılan Kâr:** `{tl_str}`\n"
-                    f"💬 **Açıklama:** Tepe kâr realizasyonu için otomatik satış yapıldı!\n"
-                    f"━━━━━━━━━━━━━━━━━━━",
-                    disable_notification=False
-                )
+                sold = True
+                reason = "RSI / 24s Tepe Doygunluğu 📈"
 
-            elif pnl_pct >= TAKE_PROFIT_PCT and not partial_tp_done[coin]:
-                execute_okx_order(inst_id, "sell", sz="50%", sz_type="base_ccy")
-                partial_tp_done[coin] = True
-                daily_stats["successful_trades"] += 1
-                daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(
-                    f"🎯 *[YETERLİ KÂR ELDE EDİLDİ - KADEMELİ SATIŞ]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
-                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
-                    f"💰 **Net Kilitlenen Kâr:** `{tl_str}`\n"
-                    f"💬 **Açıklama:** Hedef %4 kâr seviyesine ulaşıldı, kârın yarısı cebinize kilitlendi!\n"
-                    f"━━━━━━━━━━━━━━━━━━━",
-                    disable_notification=False
-                )
+            elif pnl_pct >= TAKE_PROFIT_PCT:
+                execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
+                sold = True
+                reason = "%1.0 Hızlı Kâr Al 🎯"
 
             elif (max_p - entry_p) / entry_p >= TRAILING_TRIGGER and drop_from_peak >= TRAILING_STOP:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
+                sold = True
+                reason = "İzleyen Stop Tepeden Dönüş 🏆"
+
+            if sold:
                 last_trade_state[coin] = "NEUTRAL"
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
+
+                # İŞLEM GEÇMİŞİNE EKLEME (TL VE $ CİNSİNDEN DETAYLI KAYIT)
+                now_str = datetime.now().strftime("%H:%M")
+                trade_record = {
+                    "time": now_str,
+                    "coin": coin.upper(),
+                    "buy": entry_p,
+                    "sell": curr_p,
+                    "pnl_pct": pnl_pct * 100,
+                    "profit_tl": profit_tl,
+                    "reason": reason
+                }
+                trade_history.insert(0, trade_record)
+                if len(trade_history) > 20: trade_history.pop()
+
                 send_telegram(
-                    f"🏆 *[ZİRVEDEN DÖNÜŞ SATIŞI (TRAILING STOP)]*\n"
+                    f"🔴 *[HIZLI SATIŞ KİLİTLENDİ]*\n"
                     f"━━━━━━━━━━━━━━━━━━━\n"
                     f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
-                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
-                    f"💰 **Net Toplam Kâr:** `{tl_str}`\n"
-                    f"💬 **Açıklama:** Fiyat zirveyi görüp geri çekilince kârı kaçırmamak için robot satışı yaptı!\n"
-                    f"━━━━━━━━━━━━━━━━━━━",
+                    f"📥 **Alış:** `{entry_p:,.2f}` $ ➔ 📤 **Satış:** `{curr_p:,.2f}` $\n"
+                    f"📈 **Yüzdesel K/Z:** `%{pnl_pct*100:.2f}`\n"
+                    f"💰 **Net Kâr/Zarar:** `{tl_str}`\n"
+                    f"💬 **Neden:** {reason}",
                     disable_notification=False
                 )
 
 def generate_analiz_report():
     fetch_live_data()
-    msg = "📡 *APEX MUM ÇİZGİSİ VE DESTEK ANALİZİ*\n\n"
+    msg = "📡 *APEX SKALPING DİP VE DESTEK ANALİZİ*\n\n"
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
     try: usdt_try = float(crypto_cache["dolar"]["price"])
     except: usdt_try = 48.5
@@ -420,25 +387,49 @@ def generate_analiz_report():
             pnl_pct_str = f"+%{pnl_pct*100:.2f}" if pnl_pct >= 0 else f"%{pnl_pct*100:.2f}"
             tl_str = f"+{profit_tl:.2f} TL" if profit_tl >= 0 else f"{profit_tl:.2f} TL"
             
-            msg += f" ├ 🛍️ **Alış Maliyetin:** `{entry:,.2f}` $ *(Anlık K/Z: `{pnl_pct_str}` | `{tl_str}`)*\n"
+            msg += f" ├ 🛍️ **Alış Maliyetin:** `{entry:,.2f}` $ *(K/Z: `{pnl_pct_str}` | `{tl_str}`)*\n"
         else:
             msg += " ├ 🛍️ **Alış Maliyetin:** `Elde Yok (Nakit)`\n"
             
-        msg += f" ├ 📍 **Hedef Alım Desteği (Mum Çizgisi):** `{supp:,.2f}` $\n"
-        msg += f" ├ 🎯 **Tepe Direnç Çizgisi:** `{res_lvl:,.2f}` $\n"
+        msg += f" ├ 📍 **Hedef Alım Desteği:** `{supp:,.2f}` $\n"
+        msg += f" ├ 🎯 **Tepe Direnç:** `{res_lvl:,.2f}` $\n"
         msg += f" └ 📊 RSI: `{rsi_v}` -> *{signal}*\n\n"
     
     msg += f"💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL"
     return msg
 
+def generate_history_report():
+    rapor_msg = (
+        "📊 *APEX PERFORMANS VE GEÇMİŞ İŞLEMLER*\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"🔄 **Toplam İşlem:** `{daily_stats['total_trades']}`\n"
+        f"✅ **Başarılı İşlem:** `{daily_stats['successful_trades']}`\n"
+        f"📈 **Toplam Kâr Marjı:** `%{daily_stats['total_profit_pct']*100:.2f}`\n"
+        f"🤖 *Motor:* {'🟢 Aktif (Skalping)' if AUTO_TRADE_ENABLED else '🔴 Durduruldu'}\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "📜 **SON TAMAMLANAN İŞLEMLER:**\n\n"
+    )
+    if not trade_history:
+        rapor_msg += "ℹ️ *Henüz tamamlanan geçmiş işlem bulunmuyor.*"
+    else:
+        for t in trade_history[:8]:
+            pnl_icon = "🟢" if t['profit_tl'] >= 0 else "🔴"
+            tl_str = f"+{t['profit_tl']:.2f} TL" if t['profit_tl'] >= 0 else f"{t['profit_tl']:.2f} TL"
+            rapor_msg += (
+                f"{pnl_icon} `[{t['time']}]` **{t['coin']}**\n"
+                f" ├ 📥 Alış: `{t['buy']:,.2f}$` ➔ 📤 Satış: `{t['sell']:,.2f}$`\n"
+                f" └ Net: `%{t['pnl_pct']:.2f}` ({tl_str}) | *{t['reason']}*\n\n"
+            )
+    return rapor_msg
+
 def handle_message(raw_text, chat_id):
-    global AUTO_TRADE_ENABLED, custom_target_alerts
+    global AUTO_TRADE_ENABLED
     text = raw_text.lower()
     fetch_live_data()
 
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
-        send_telegram("🚀 *APEX BOT AKTİF (NET TL KÂR HESAPLAMA MODU)*", chat_id)
+        send_telegram("🚀 *APEX BOT AKTİF (SKALPING VE İŞLEM GEÇMİŞİ MODU)*", chat_id)
     elif text in ["/stop", "stop"]:
         AUTO_TRADE_ENABLED = False
         send_telegram("🛑 *OTOMATİK MOTOR DURDURULDU!*", chat_id)
@@ -450,14 +441,7 @@ def handle_message(raw_text, chat_id):
     elif text in ["/analiz", "analiz"]:
         send_telegram(generate_analiz_report(), chat_id)
     elif text in ["/rapor", "rapor"]:
-        rapor_msg = (
-            "📊 *APEX PERFORMANS RAPORU*\n\n"
-            f"🔄 **Toplam İşlem:** `{daily_stats['total_trades']}`\n"
-            f"✅ **Başarılı İşlem:** `{daily_stats['successful_trades']}`\n"
-            f"📈 **Toplam Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`\n"
-            f"🤖 *Motor:* {'🟢 Aktif' if AUTO_TRADE_ENABLED else '🔴 Durduruldu'}"
-        )
-        send_telegram(rapor_msg, chat_id)
+        send_telegram(generate_history_report(), chat_id)
 
 def telegram_polling_listener():
     offset = 0
@@ -484,7 +468,7 @@ def background_scanner():
             check_auto_trade_signals()
         except Exception as e:
             print(f"Tarama hatası: {e}")
-        time.sleep(20)
+        time.sleep(15)
 
 DASHBOARD_PRO_HTML = """
 <!DOCTYPE html>
@@ -492,7 +476,7 @@ DASHBOARD_PRO_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX PRO Trade Terminal</title>
+    <title>APEX PRO Skalping Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -527,16 +511,16 @@ DASHBOARD_PRO_HTML = """
     <script>
         setTimeout(function(){ location.reload(); }, 15000);
         function changeChart(symbol) {
-            document.getElementById('tv_iframe').src = "https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=" + symbol + "&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange";
+            document.getElementById('tv_iframe').src = "https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=" + symbol + "&interval=5&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange";
         }
     </script>
 </head>
 <body>
     <div class="container">
         <div class="navbar">
-            <div class="logo">⚡ APEX PRO TERMINAL</div>
+            <div class="logo">⚡ APEX PRO TERMINAL (SKALPING)</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF (DESTEK MODU)' if auto_enabled else '🔴 BOT PAUSE' }}
+                {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 
@@ -563,9 +547,9 @@ DASHBOARD_PRO_HTML = """
 
         <div class="main-grid">
             <div class="card-box">
-                <div class="box-head"><span>📈 TradingView Canlı Teknik Grafik (15m)</span></div>
+                <div class="box-head"><span>📈 TradingView Canlı Teknik Grafik (5m)</span></div>
                 <div class="tv-container">
-                    <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
+                    <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=5&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
                 </div>
             </div>
 
@@ -605,9 +589,9 @@ DASHBOARD_PRO_HTML = """
                         <td>{{ data['price'] }} $</td>
                         <td>{{ data['rsi'] }}</td>
                         <td>
-                            {% if data['rsi'] <= 45 %}
-                                <span class="signal-pill sig-dip">🟢 GÜÇLÜ DİP / ALIM</span>
-                            {% elif data['rsi'] >= 68 %}
+                            {% if data['rsi'] <= 53 %}
+                                <span class="signal-pill sig-dip">🟢 SKALPING / ALIM</span>
+                            {% elif data['rsi'] >= 65 %}
                                 <span class="signal-pill sig-sell">🔴 DOYGUNLUK / SAT</span>
                             {% else %}
                                 <span class="signal-pill sig-neut">⚪ NÖTR</span>

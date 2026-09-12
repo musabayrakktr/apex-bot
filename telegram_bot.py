@@ -4,6 +4,7 @@ from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
 from market import get_live_market_data
 
 def set_telegram_commands():
+    """Bot menü butonlarını Telegram'a yükler"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "cuzdan", "description": "💰 OKX TR Cüzdan Bakiye Durumu"},
@@ -21,6 +22,7 @@ def set_telegram_commands():
         print(f"Menü hatası: {e}")
 
 def send_telegram(message, chat_id=CHAT_ID):
+    """Telegram'a bildirim mesajı gönderir"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     data = json.dumps(payload).encode('utf-8')
@@ -31,6 +33,7 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram mesaj hatası: {e}")
 
 def handle_message(raw_text, chat_id):
+    """Gelen mesajları yanıtlayan ana fonksiyon"""
     text = raw_text.lower()
     
     if text in ["/start", "start", "/help"]:

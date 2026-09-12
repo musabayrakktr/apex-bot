@@ -57,7 +57,7 @@ def handle_message(raw_text, chat_id):
         send_telegram(
             "💰 *APEX CÜZDAN RAPORU*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "💵 *Kasa (USDT):* `19.71 USDT` (~675 TL)\n"
+            "💵 *Kasa (USDT/TL):* `~950.00 TL`\n"
             "🛡️ *Yatırım Bütçesi:* Coin Başı 250 TL\n"
             "🎯 *Strateji:* 0 Zarar / Mikro Kâr Scalper",
             chat_id

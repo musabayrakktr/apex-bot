@@ -8,7 +8,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX USDT Bakiye & Kapasite"},
+        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık"},
         {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
@@ -35,14 +35,14 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram mesaj hatası: {e}")
 
 def handle_message(raw_text, chat_id):
-    text = raw_text.lower()
+    text = raw_text.lower().strip()
     
     if text in ["/start", "start", "/help"]:
         send_telegram(
             "🤖 *APEX BOT - SİSTEM AKTİF*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "📋 *Komut Listesi:*\n"
-            "🔹 `/cuzdan` - Güncel USDT bakiyesi & kapasite\n"
+            "🔹 `/cuzdan` - Canlı toplam varlık & kapasite\n"
             "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
             "🔹 `/rapor` - Açık pozisyonlar ve durum\n"
             "🔹 `/kur` - Canlı piyasa kurları\n"
@@ -51,9 +51,9 @@ def handle_message(raw_text, chat_id):
             "🔹 `/stop` - Oto Motoru Durdur",
             chat_id
         )
-        elif text == "/cuzdan":
+    elif text == "/cuzdan":
         toplam_varlik_usdt = get_account_balance()
-        coin_butce_usdt = 10.0  # Pozisyon başı ayrılan bütçe (USDT)
+        coin_butce_usdt = 10.0  # Pozisyon başı ayrılacak bütçe (USDT)
         max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
         acik_poz = len(ACTIVE_POSITIONS)
         kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
@@ -67,7 +67,6 @@ def handle_message(raw_text, chat_id):
             f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
             chat_id
         )
-
     elif text == "/analiz":
         m = get_live_market_data()
         send_telegram(

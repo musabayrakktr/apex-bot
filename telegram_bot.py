@@ -1,117 +1,79 @@
+import hmac
+import base64
 import json
 import urllib.request
-from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
-from market import get_live_market_data
-from trader import get_account_balance
+import time
+from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
-def set_telegram_commands():
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
-    commands = [
-        {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık"},
-        {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
-        {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
-        {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
-        {"command": "gecmis", "description": "📜 Detaylı İşlem Dökümü"},
-        {"command": "stop", "description": "🛑 Oto Motoru Durdur"},
-        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"}
-    ]
-    payload = {"commands": commands}
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+def generate_signature(timestamp, method, request_path, body=""):
+    message = timestamp + method + request_path + body
+    mac = hmac.new(bytes(OKX_SECRET_KEY, encoding='utf-8'), bytes(message, encoding='utf-8'), digestmod='sha256')
+    return base64.b64encode(mac.digest()).decode('utf-8')
+
+def get_ticker_price_in_usdt(ccy, base_url, headers_base):
+    if ccy == "USDT":
+        return 1.0
     try:
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as e:
-        print(f"Menü hatası: {e}")
+        ticker_url = f"{base_url}/api/v5/market/ticker?instId={ccy}-USDT"
+        req = urllib.request.Request(ticker_url, headers=headers_base)
+        with urllib.request.urlopen(req, timeout=3) as res:
+            t_data = json.loads(res.read().decode())
+            if t_data.get("data"):
+                return float(t_data["data"][0]["last"])
+    except Exception:
+        pass
+    return 0.0
 
-def send_telegram(message, chat_id=CHAT_ID):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
-    try:
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as e:
-        print(f"Telegram mesaj hatası: {e}")
+def get_account_balance():
+    if not (OKX_API_KEY and OKX_SECRET_KEY):
+        return "⚠️ HATA: OKX_API_KEY veya OKX_SECRET_KEY Render'da bulunamadı!"
 
-def handle_message(raw_text, chat_id):
-    text = raw_text.lower().strip()
+    path = "/api/v5/account/balance"
+    timestamp = str(time.time()).split('.')[0] + '.' + str(time.time()).split('.')[1][:3]
     
-    if text in ["/start", "start", "/help"]:
-        send_telegram(
-            "🤖 *APEX BOT - SİSTEM AKTİF*\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "📋 *Komut Listesi:*\n"
-            "🔹 `/cuzdan` - Canlı toplam varlık & kapasite\n"
-            "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
-            "🔹 `/rapor` - Açık pozisyonlar ve durum\n"
-            "🔹 `/kur` - Canlı piyasa kurları\n"
-            "🔹 `/gecmis` - Geçmiş kâr dökümü\n"
-            "🔹 `/baslat` - Oto Motoru Çalıştır\n"
-            "🔹 `/stop` - Oto Motoru Durdur",
-            chat_id
-        )
-    elif text == "/cuzdan":
-        bakiye_yaniti = get_account_balance()
-        coin_butce_usdt = 10.0
-        
-        # Eğer OKX'ten doğrudan sayısal bakiye geldiyse
-        if isinstance(bakiye_yaniti, (int, float)):
-            toplam_varlik_usdt = float(bakiye_yaniti)
-            max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
-            acik_poz = len(ACTIVE_POSITIONS)
-            kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
-            
-            send_telegram(
-                f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"🌐 *Toplam Varlık Değeri:* `{toplam_varlik_usdt:,.2f} USDT`\n"
-                f"🛡️ *İşlem Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
-                f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
-                f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
-                chat_id
-            )
-        else:
-            # Hata metni veya özel yanıt geldiyse doğrudan bas
-            send_telegram(f"💰 *APEX CANLI CÜZDAN RAPORU*\n━━━━━━━━━━━━━━━━━━━\n{bakiye_yaniti}", chat_id)
+    # OKX Cloudflare engeli (403 Forbidden) için User-Agent başlığı
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "OK-ACCESS-KEY": OKX_API_KEY,
+        "OK-ACCESS-SIGN": generate_signature(timestamp, "GET", path, ""),
+        "OK-ACCESS-TIMESTAMP": timestamp,
+        "Content-Type": "application/json"
+    }
+    
+    if OKX_PASSPHRASE:
+        headers["OK-ACCESS-PASSPHRASE"] = OKX_PASSPHRASE
 
-    elif text == "/analiz":
-        m = get_live_market_data()
-        send_telegram(
-            f"📈 *APEX PİYASA ANALİZ RAPORU*\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 *Parite:* BTC / USDT (5m)\n"
-            f"💰 *Anlık Fiyat:* `{m['btc_fiyat']}`\n"
-            f"📊 *RSI Durumu:* `{m['rsi']}`\n"
-            f"📉 *Trend / Yön:* `{m['trend']}`\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🕒 *Dip Taraması:* Tüm Coinlerde 7/24 Aktif",
-            chat_id
-        )
-    elif text == "/rapor":
-        if not ACTIVE_POSITIONS:
-            send_telegram("📅 *APEX POZİSYON RAPORU*\n━━━━━━━━━━━━━━━━━━━\n🚀 Şu an açık pozisyon yok. Dip tespiti bekleniyor...", chat_id)
-        else:
-            rapor_metni = "📅 *APEX AKTİF POZİSYONLAR*\n━━━━━━━━━━━━━━━━━━━\n"
-            for p in ACTIVE_POSITIONS:
-                rapor_metni += f"🔹 *{p['parite']}*\n  Alış: `{p['giris']}` | Anlık: `{p['anlik']}`\n  Durum: *{p['durum']}*\n\n"
-            send_telegram(rapor_metni, chat_id)
-    elif text in ["/kur", "/piyasa"]:
-        m = get_live_market_data()
-        send_telegram(
-            f"💱 *CANLI PİYASA & KUR EKRANI*\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🪙 *Bitcoin (BTC):* `{m['btc_fiyat']}`\n"
-            f"💵 *Dolar / TL:* `{m['dolar']}`\n"
-            f"🟡 *Gram Altın:* `{m['gram_altin']}`\n"
-            f"🪙 *Çeyrek Altın:* `{m['ceyrek_altin']}`",
-            chat_id
-        )
-    elif text == "/gecmis":
-        if not TRADE_HISTORY:
-            send_telegram("📜 *İŞLEM GEÇMİŞİ*\n━━━━━━━━━━━━━━━━━━━\nHenüz tamamlanan işlem bulunmuyor.", chat_id)
-        else:
-            gecmis_metni = "📜 *İŞLEM GEÇMİŞİ VE KÂR DÖKÜMÜ*\n━━━━━━━━━━━━━━━━━━━\n"
-            for t in TRADE_HISTORY:
-                gecmis_metni += f"🔹 *{t['parite']}* | Kâr: *{t['kar']}*\n   🕒 _{t['zaman']}_\n\n"
-            send_telegram(gecmis_metni, chat_id)
+    base_urls = ["https://tr.okx.com", "https://www.okx.com"]
+    hata_mesajlari = []
+    
+    for base_url in base_urls:
+        try:
+            req = urllib.request.Request(f"{base_url}{path}", headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as res:
+                data = json.loads(res.read().decode())
+                if data.get("code") == "0" and data.get("data"):
+                    details = data["data"][0].get("details", [])
+                    total_usdt_value = 0.0
+                    
+                    for item in details:
+                        ccy = item.get("ccy")
+                        eq = float(item.get("eq", 0))
+                        if eq <= 0:
+                            continue
+                        if ccy == "USDT":
+                            total_usdt_value += eq
+                        elif ccy == "TRY":
+                            usdt_try = get_ticker_price_in_usdt("USDT-TRY", base_url, {"User-Agent": headers["User-Agent"]})
+                            price = usdt_try if usdt_try > 0 else 34.20
+                            total_usdt_value += (eq / price)
+                        else:
+                            coin_price = get_ticker_price_in_usdt(ccy, base_url, {"User-Agent": headers["User-Agent"]})
+                            total_usdt_value += (eq * coin_price)
+                    
+                    return round(total_usdt_value, 2)
+                else:
+                    hata_mesajlari.append(f"{base_url} -> KOD: {data.get('code')} MSG: {data.get('msg')}")
+        except Exception as e:
+            hata_mesajlari.append(f"{base_url} -> Bağlantı Hatası: {str(e)}")
+
+    return "⚠️ OKX BAGLANTI HATASI:\n" + "\n".join(hata_mesajlari)

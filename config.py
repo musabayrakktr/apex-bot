@@ -1,7 +1,7 @@
 import os
 
-# Telegram Konfigürasyonu
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7832675952:AAESn65y2K7iXkH_GqTjB0aO9vX_7m0_8v4")
+# BotFather'dan gelen güncel token
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M")
 CHAT_ID = os.environ.get("CHAT_ID", "6096537380")
 
 # OKX API Konfigürasyonu (Gerçek Alım-Satım İçin)

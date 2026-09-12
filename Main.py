@@ -11,6 +11,9 @@ from flask import Flask, render_template_string
 
 app = Flask(__name__)
 
+# ==========================================
+# 1. API VE BOT AYARLARI
+# ==========================================
 TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
 CHAT_ID = "8982017587"
 
@@ -20,12 +23,15 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 AUTO_TRADE_ENABLED = True
 
-# --- HIZLI SKALPING VEYA RİSK YÖNETİMİ ---
-STOP_LOSS_PCT = 0.015     # %1.5 Stop-Loss
-TAKE_PROFIT_PCT = 0.010   # %1.0 Hızlı Kâr Al (Skalping)
-TRAILING_TRIGGER = 0.010  # %1.0 Kâr görünce izlemeye başla
-TRAILING_STOP = 0.005     # %0.5 Tepeden çekilirse sat
+# --- SKALPING RİSK PAROMETRELERİ ---
+STOP_LOSS_PCT = 0.015     # %1.5 Stop-Loss (Sermaye Koruma)
+TAKE_PROFIT_PCT = 0.010   # %1.0 Hızlı Kâr Al (Seri Kâr)
+TRAILING_TRIGGER = 0.010  # %1.0 Kârı görünce iz sürmeye başla
+TRAILING_STOP = 0.005     # %0.5 Tepeden dönüşte sat
 
+# ==========================================
+# 2. VERİ ÖNBELLEĞİ VE HESAP DURUMU
+# ==========================================
 crypto_cache = {
     "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
     "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
@@ -39,17 +45,19 @@ crypto_cache = {
 }
 
 last_trade_state = {k: "NEUTRAL" for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
-partial_tp_done = {k: False for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 buy_prices = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 trade_amounts = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 max_prices_during_trade = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 
 daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
-trade_history = []  # Geçmiş İşlem Kayıt Defteri
+trade_history = []  # İşlem Geçmiş Defteri
 
 last_report_time = time.time()
-REPORT_INTERVAL = 900  # 15 Dakika (900 saniye)
+REPORT_INTERVAL = 900  # 15 Dakika ( Otomatik Analiz Raporu )
 
+# ==========================================
+# 3. TELEGRAM BİLDİRİM VE KOMUT SİSTEMİ
+# ==========================================
 def send_telegram(message, chat_id=CHAT_ID, disable_notification=False):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -65,7 +73,7 @@ def send_telegram(message, chat_id=CHAT_ID, disable_notification=False):
         urllib.request.urlopen(req, timeout=10)
         return True
     except Exception as e:
-        print(f"Telegram hatası: {e}")
+        print(f"Telegram hatasi: {e}")
         return False
 
 def set_telegram_commands():
@@ -90,8 +98,11 @@ def set_telegram_commands():
     try:
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
-        print(f"Komut menüsü hatası: {e}")
+        print(f"Komut menüsü hatasi: {e}")
 
+# ==========================================
+# 4. OKX BORSA BAKIYE VE İŞLEM YÖNETİMİ
+# ==========================================
 def get_usdt_balance_num():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 0.0
@@ -116,7 +127,7 @@ def get_usdt_balance_num():
                     if coin.get("ccy") == "USDT":
                         return float(coin.get("availBal", "0"))
     except Exception as e:
-        print(f"Bakiye okuma hatası: {e}")
+        print(f"Bakiye okuma hatasi: {e}")
     return 0.0
 
 def get_okx_balance():
@@ -164,6 +175,9 @@ def execute_okx_order(inst_id, side, sz="1", sz_type="base_ccy"):
     except Exception as e:
         return False, str(e)
 
+# ==========================================
+# 5. TEKNİK ANALİZ MOTORU (5m SKALPING)
+# ==========================================
 def calculate_rsi_bb_and_levels(closes, lows, highs, period=14):
     if len(closes) < period + 1: return 50.0, 0.0, 0.0, 0.0
     gains, losses = [], []
@@ -215,7 +229,7 @@ def fetch_okx_ticker_and_indicators(inst_id):
                 highs.reverse()
                 rsi_value, bb_lower, supp, res_lvl = calculate_rsi_bb_and_levels(closes, lows, highs)
     except Exception as e:
-        print(f"OKX Veri hatası ({inst_id}): {e}")
+        print(f"OKX Veri hatasi ({inst_id}): {e}")
     return price, rsi_value, bb_lower, supp, res_lvl, low_24h, high_24h
 
 def fetch_live_data():
@@ -246,7 +260,7 @@ def fetch_live_data():
                     crypto_cache["gram_altin"]["price"] = f"{gram:,.2f}"
                     crypto_cache["ceyrek_altin"]["price"] = f"{(gram * 1.635):,.2f}"
     except Exception as e:
-        print(f"Borsa Kur Hatası: {e}")
+        print(f"Borsa Kur Hatasi: {e}")
 
 def calculate_precision_signal(rsi_val, curr_price, bb_lower):
     if rsi_val <= 45: return "🟢 GÜÇLÜ ALIM BÖLGESİ"
@@ -255,8 +269,11 @@ def calculate_precision_signal(rsi_val, curr_price, bb_lower):
     elif rsi_val >= 58: return "🟡 KÂR ALIM YAKIN"
     else: return "⚪ NÖTR"
 
+# ==========================================
+# 6. OTONOM SKALPING MOTORU
+# ==========================================
 def check_auto_trade_signals():
-    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, partial_tp_done, trade_amounts, trade_history
+    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, trade_amounts, trade_history
     if not AUTO_TRADE_ENABLED:
         return
     
@@ -279,15 +296,15 @@ def check_auto_trade_signals():
         is_near_24h_low = (l24 > 0 and curr_p <= l24 * 1.02)
         is_near_24h_high = (h24 > 0 and curr_p >= h24 * 0.985)
 
-        # HIZLI SKALPING ALIM ŞARTI
+        # ESNEK SKALPING ALIM ŞARTI (24s Dibi VEYA RSI <= 53 VEYA Bollinger Alt Bant)
         is_strong_dip = is_near_24h_low or (rsi <= 53) or (bb_l > 0 and curr_p <= bb_l * 1.01)
 
+        # A) ALIM POZİSYONU AÇMA
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             if avail_usdt >= trade_amount and trade_amount >= 5.0:
                 success, msg = execute_okx_order(inst_id, "buy", sz=trade_amount, sz_type="quote_ccy")
                 if success:
                     last_trade_state[coin] = "BOUGHT"
-                    partial_tp_done[coin] = False
                     buy_prices[coin] = curr_p
                     trade_amounts[coin] = trade_amount
                     max_prices_during_trade[coin] = curr_p
@@ -298,16 +315,18 @@ def check_auto_trade_signals():
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
                         f"🎯 **Destek Çizgisi:** `{supp:,.2f}` $\n"
+                        f"📉 **24 Saatin En Düşüğü:** `{l24:,.2f}` $\n"
                         f"💰 **Sepet Bütçesi:** `{trade_amount}` USDT\n"
                         f"📊 **RSI:** `{rsi}`",
                         disable_notification=False
                     )
 
+        # B) MEVCUT POZİSYON TAKİBİ VE SATIŞ
         elif last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
             entry_p = buy_prices[coin]
             pnl_pct = (curr_p - entry_p) / entry_p
             
-            invested_usdt = trade_amounts.get(coin, 6.0)
+            invested_usdt = trade_amounts.get(coin, 5.0)
             profit_usdt = invested_usdt * pnl_pct
             profit_tl = profit_usdt * usdt_try
             tl_str = f"+{profit_tl:.2f} TL" if profit_tl >= 0 else f"{profit_tl:.2f} TL"
@@ -345,6 +364,7 @@ def check_auto_trade_signals():
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
 
+                # GEÇMİŞ İŞLEM DEFTERİNE KAYIT
                 now_str = datetime.now().strftime("%H:%M")
                 trade_record = {
                     "time": now_str,
@@ -369,6 +389,9 @@ def check_auto_trade_signals():
                     disable_notification=False
                 )
 
+# ==========================================
+# 7. TELEGRAM RAPOR JENERATÖRLERİ
+# ==========================================
 def generate_analiz_report():
     fetch_live_data()
     msg = "📡 *APEX SKALPING DİP VE DESTEK ANALİZİ*\n\n"
@@ -389,7 +412,7 @@ def generate_analiz_report():
         if last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
             entry = buy_prices[coin]
             pnl_pct = ((p_num - entry) / entry)
-            invested_usdt = trade_amounts.get(coin, 6.0)
+            invested_usdt = trade_amounts.get(coin, 5.0)
             profit_tl = invested_usdt * pnl_pct * usdt_try
             
             pnl_pct_str = f"+%{pnl_pct*100:.2f}" if pnl_pct >= 0 else f"%{pnl_pct*100:.2f}"
@@ -437,7 +460,7 @@ def handle_message(raw_text, chat_id):
 
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
-        send_telegram("🚀 *APEX BOT AKTİF (SKALPING VE İŞLEM GEÇMİŞİ MODU)*", chat_id)
+        send_telegram("🚀 *APEX BOT AKTİF (SIFIRDAN SKALPING VE GEÇMİŞ İŞLEM MODU)*", chat_id)
     elif text in ["/stop", "stop"]:
         AUTO_TRADE_ENABLED = False
         send_telegram("🛑 *OTOMATİK MOTOR DURDURULDU!*", chat_id)
@@ -463,6 +486,9 @@ def handle_message(raw_text, chat_id):
     elif text in ["/ceyrek", "ceyrek"]:
         send_telegram(f"🥇 **Çeyrek Altın:** `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
 
+# ==========================================
+# 8. DÖNGÜ VE SUNUCU BAŞLATICI
+# ==========================================
 def telegram_polling_listener():
     offset = 0
     try:
@@ -488,14 +514,14 @@ def background_scanner():
             fetch_live_data()
             check_auto_trade_signals()
 
-            # 15 DAKİKADA BİR OTOMATİK ANALİZ RAPORU GÖNDERME
+            # 15 Dakikada Bir Otomatik Analiz Raporu
             now = time.time()
             if now - last_report_time >= REPORT_INTERVAL:
                 send_telegram(generate_analiz_report())
                 last_report_time = now
 
         except Exception as e:
-            print(f"Tarama hatası: {e}")
+            print(f"Tarama hatasi: {e}")
         time.sleep(15)
 
 DASHBOARD_PRO_HTML = """
@@ -504,7 +530,7 @@ DASHBOARD_PRO_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX PRO Skalping Terminal</title>
+    <title>APEX PRO Trade Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -546,7 +572,7 @@ DASHBOARD_PRO_HTML = """
 <body>
     <div class="container">
         <div class="navbar">
-            <div class="logo">⚡ APEX PRO TERMINAL (SKALPING)</div>
+            <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
                 {{ '🟢 BOT AKTİF' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>

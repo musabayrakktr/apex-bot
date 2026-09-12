@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, jsonify
 from trader import get_account_balance
 from market import get_live_market_data
@@ -22,5 +23,9 @@ def api_status():
     })
 
 def render_dashboard():
-    """main.py dosyasının çağırdığı eksik fonksiyon"""
-    app.run(host='0.0.0.0', port=10000)
+    """Render'ın 502 vermemesi için dinamik PORT tanımı"""
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+if __name__ == '__main__':
+    render_dashboard()

@@ -172,7 +172,6 @@ def calculate_rsi_bb_and_levels(closes, lows, highs, period=14):
     std_dev = variance ** 0.5
     bb_lower = sma - (2 * std_dev)
 
-    # --- MUM ÇİZGİSİ / DESTEK - DİRENÇ HESABI ---
     support_level = min(lows[-20:]) if len(lows) >= 20 else min(lows)
     resistance_level = max(highs[-20:]) if len(highs) >= 20 else max(highs)
 
@@ -320,6 +319,15 @@ def generate_analiz_report():
         signal = calculate_precision_signal(rsi_v, p_num, crypto_cache[coin]['bb_lower'])
         
         msg += f"🪙 **{coin.upper()[:3]}:** `{p_str}` $\n"
+        
+        if last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
+            entry = buy_prices[coin]
+            pnl = ((p_num - entry) / entry) * 100
+            pnl_str = f"+%{pnl:.2f}" if pnl >= 0 else f"%{pnl:.2f}"
+            msg += f" ├ 🛍️ **Alış Maliyetin:** `{entry:,.2f}` $ *(Anlık: `{pnl_str}`)*\n"
+        else:
+            msg += " ├ 🛍️ **Alış Maliyetin:** `Elde Yok (Nakit)`\n"
+            
         msg += f" ├ 📍 **Hedef Alım Desteği (Mum Çizgisi):** `{supp:,.2f}` $\n"
         msg += f" ├ 🎯 **Tepe Direnç Çizgisi:** `{res_lvl:,.2f}` $\n"
         msg += f" └ 📊 RSI: `{rsi_v}` -> *{signal}*\n\n"

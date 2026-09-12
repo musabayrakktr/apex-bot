@@ -1,19 +1,51 @@
 import os
+import threading
+import time
+import json
+import urllib.request
+from flask import Flask
+from config import TELEGRAM_TOKEN
+from telegram_bot import handle_message
+from web import render_dashboard
 
-TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
-CHAT_ID = "8982017587"
+app = Flask(__name__)
 
-OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
-OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
-OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
+def telegram_polling_listener():
+    offset = 0
+    # Eski webhook kalıntılarını temizle
+    try:
+        urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
+    except: 
+        pass
+        
+    while True:
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={offset}&timeout=20"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=25) as response:
+                data = json.loads(response.read().decode())
+                if data.get("ok") and data.get("result"):
+                    for update in data["result"]:
+                        offset = update["update_id"] + 1
+                        if "message" in update:
+                            msg = update["message"]
+                            text = msg.get("text", "").strip()
+                            chat_id = msg.get("chat", {}).get("id")
+                            if text and chat_id:
+                                handle_message(text, chat_id)
+        except Exception as e:
+            print(f"Polling hatası: {e}")
+            time.sleep(3)
 
-# Şuan aktif olan pozisyonlar
-ACTIVE_POSITIONS = [
-    {"parite": "ETH/USDT", "yon": "LONG 🟢", "giris": "$2,450.00", "kar_zarar": "+%2.40"},
-    {"parite": "SOL/USDT", "yon": "LONG 🟢", "giris": "$142.50", "kar_zarar": "+%0.85"}
-]
+@app.route('/')
+def home():
+    return render_dashboard()
 
-# Geçmiş işlem hafızası
-TRADE_HISTORY = [
-    {"parite": "BTC/USDT", "islem": "KÂR 🟢", "tutar": "+1.25 USDT", "oran": "%1.2", "zaman": "12.09.2026 - 14:10"},
-]
+if __name__ == '__main__':
+    # Telegram dinleyicisini arka plan thread'inde başlatıyoruz
+    t = threading.Thread(target=telegram_polling_listener, daemon=True)
+    t.start()
+    
+    # Render'ın verdiği dinamik portu alıyoruz (Yoksa varsayılan 10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)

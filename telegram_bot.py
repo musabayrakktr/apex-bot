@@ -1,15 +1,15 @@
 import json
 import urllib.request
-from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
+from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS, COIN_BUDGET_TL
 from market import get_live_market_data
+from trader import get_account_balance
 
 def set_telegram_commands():
-    """Bot menü butonlarını Telegram'a yükler (Start Dahil)"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX TR Cüzdan Bakiye Durumu"},
-        {"command": "analiz", "description": "📈 5m & 15m Piyasa Analiz Raporu"},
+        {"command": "cuzdan", "description": "💰 OKX Canlı Bakiye & Bütçe"},
+        {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
         {"command": "gecmis", "description": "📜 Detaylı İşlem Dökümü"},
@@ -25,7 +25,6 @@ def set_telegram_commands():
         print(f"Menü hatası: {e}")
 
 def send_telegram(message, chat_id=CHAT_ID):
-    """Telegram'a bildirim mesajı gönderir"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     data = json.dumps(payload).encode('utf-8')
@@ -36,7 +35,6 @@ def send_telegram(message, chat_id=CHAT_ID):
         print(f"Telegram mesaj hatası: {e}")
 
 def handle_message(raw_text, chat_id):
-    """Gelen mesajları yanıtlayan ana fonksiyon"""
     text = raw_text.lower()
     
     if text in ["/start", "start", "/help"]:
@@ -44,9 +42,9 @@ def handle_message(raw_text, chat_id):
             "🤖 *APEX BOT - SİSTEM AKTİF*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "📋 *Komut Listesi:*\n"
-            "🔹 `/cuzdan` - Güncel bakiye durumu\n"
+            "🔹 `/cuzdan` - Güncel bakiye & bütçe kapasitesi\n"
             "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
-            "🔹 `/rapor` - Aktif pozisyonlar ve durum\n"
+            "🔹 `/rapor` - Açık pozisyonlar ve durum\n"
             "🔹 `/kur` - Canlı piyasa kurları\n"
             "🔹 `/gecmis` - Geçmiş kâr dökümü\n"
             "🔹 `/baslat` - Oto Motoru Çalıştır\n"
@@ -54,12 +52,22 @@ def handle_message(raw_text, chat_id):
             chat_id
         )
     elif text == "/cuzdan":
+        # OKX'ten anlık canlı bakiyeyi çeker
+        bakiye_tl = get_account_balance()
+        bakiye_usdt = bakiye_tl / 34.20
+        
+        # Kasadaki toplam paraya göre işlem açılabilecek maksimum coin sayısını hesaplar
+        max_pozisyon = int(bakiye_tl // COIN_BUDGET_TL)
+        acik_poz = len(ACTIVE_POSITIONS)
+        kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
+        
         send_telegram(
-            "💰 *APEX CÜZDAN RAPORU*\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "💵 *Kasa (USDT/TL):* `~950.00 TL`\n"
-            "🛡️ *Yatırım Bütçesi:* Coin Başı 250 TL\n"
-            "🎯 *Strateji:* 0 Zarar / Mikro Kâr Scalper",
+            f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"💵 *Hesap Bakiyesi:* `{bakiye_tl:,.2f} TL` (~`{bakiye_usdt:,.2f} USDT`)\n"
+            f"🛡️ *İşlem Başı Bütçe:* `{COIN_BUDGET_TL} TL`\n"
+            f"📊 *Toplam Coin Kapasitesi:* `{max_pozisyon} Adet`\n"
+            f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
             chat_id
         )
     elif text == "/analiz":
@@ -72,7 +80,7 @@ def handle_message(raw_text, chat_id):
             f"📊 *RSI Durumu:* `{m['rsi']}`\n"
             f"📉 *Trend / Yön:* `{m['trend']}`\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🕒 *Dip Taraması:* 7/24 Aktif",
+            f"🕒 *Dip Taraması:* Tüm Coinlerde 7/24 Aktif",
             chat_id
         )
     elif text == "/rapor":

@@ -27,12 +27,12 @@ TRAILING_TRIGGER = 0.02
 TRAILING_STOP = 0.01      
 
 crypto_cache = {
-    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
-    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
-    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:SOLUSDT"},
-    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:AVAXUSDT"},
-    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:LINKUSDT"},
-    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "tv_symbol": "BINANCE:NEARUSDT"},
+    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
+    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
+    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:SOLUSDT"},
+    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:AVAXUSDT"},
+    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:LINKUSDT"},
+    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:NEARUSDT"},
     "dolar": {"price": "0.00"},
     "gram_altin": {"price": "0.00"},
     "ceyrek_altin": {"price": "0.00"}
@@ -152,8 +152,8 @@ def execute_okx_order(inst_id, side, sz="1", sz_type="base_ccy"):
     except Exception as e:
         return False, str(e)
 
-def calculate_rsi_and_bb(closes, period=14):
-    if len(closes) < period + 1: return 50.0, 0.0
+def calculate_rsi_bb_and_levels(closes, lows, highs, period=14):
+    if len(closes) < period + 1: return 50.0, 0.0, 0.0, 0.0
     gains, losses = [], []
     for i in range(1, len(closes)):
         change = closes[i] - closes[i-1]
@@ -172,10 +172,14 @@ def calculate_rsi_and_bb(closes, period=14):
     std_dev = variance ** 0.5
     bb_lower = sma - (2 * std_dev)
 
-    return rsi, bb_lower
+    # --- MUM ÇİZGİSİ / DESTEK - DİRENÇ HESABI ---
+    support_level = min(lows[-20:]) if len(lows) >= 20 else min(lows)
+    resistance_level = max(highs[-20:]) if len(highs) >= 20 else max(highs)
+
+    return rsi, bb_lower, support_level, resistance_level
 
 def fetch_okx_ticker_and_indicators(inst_id):
-    price, rsi_value, bb_lower = 0.0, 50.0, 0.0
+    price, rsi_value, bb_lower, supp, res_lvl = 0.0, 50.0, 0.0, 0.0, 0.0
     try:
         url_ticker = f"https://www.okx.com/api/v5/market/ticker?instId={inst_id}"
         req_t = urllib.request.Request(url_ticker, headers={'User-Agent': 'Mozilla/5.0'})
@@ -189,24 +193,30 @@ def fetch_okx_ticker_and_indicators(inst_id):
             res_c = json.loads(response.read().decode())
             if res_c.get("code") == "0" and res_c.get("data"):
                 closes = [float(item[4]) for item in res_c["data"]]
+                lows = [float(item[3]) for item in res_c["data"]]
+                highs = [float(item[2]) for item in res_c["data"]]
                 closes.reverse()
-                rsi_value, bb_lower = calculate_rsi_and_bb(closes)
+                lows.reverse()
+                highs.reverse()
+                rsi_value, bb_lower, supp, res_lvl = calculate_rsi_bb_and_levels(closes, lows, highs)
     except Exception as e:
         print(f"OKX Veri hatası ({inst_id}): {e}")
-    return price, rsi_value, bb_lower
+    return price, rsi_value, bb_lower, supp, res_lvl
 
 def fetch_live_data():
     global crypto_cache
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
     for coin in coins:
-        p, rsi, bb_l = fetch_okx_ticker_and_indicators(crypto_cache[coin]["inst_id"])
+        p, rsi, bb_l, supp, res_lvl = fetch_okx_ticker_and_indicators(crypto_cache[coin]["inst_id"])
         if p > 0:
             crypto_cache[coin]["price_num"] = p
             crypto_cache[coin]["price"] = f"{p:,.2f}"
             crypto_cache[coin]["rsi"] = rsi
             crypto_cache[coin]["bb_lower"] = bb_l
+            crypto_cache[coin]["support"] = supp
+            crypto_cache[coin]["resistance"] = res_lvl
     try:
-        usdt_p, _, _ = fetch_okx_ticker_and_indicators("USDT-TRY")
+        usdt_p, _, _, _, _ = fetch_okx_ticker_and_indicators("USDT-TRY")
         if usdt_p > 0:
             crypto_cache["dolar"]["price"] = f"{usdt_p:.2f}"
             url_gold = "https://api.gold-api.com/price/XAU"
@@ -235,9 +245,6 @@ def check_auto_trade_signals():
         return
     
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
-    
-    # KASAYI BÖLÜŞTÜRME (SEPET MANTIĞI): Toplam kullanılabilir bakiyenin en fazla %25'i ile tek işlem açılır.
-    # Böylece para tek bir coine gömülmez, farklı coinlere paylaştırılır.
     avail_usdt = get_usdt_balance_num()
     max_allocation_per_coin = round(avail_usdt * 0.25, 2)
     trade_amount = max(min(max_allocation_per_coin, 25.0), 5.0)
@@ -246,6 +253,7 @@ def check_auto_trade_signals():
         rsi = crypto_cache[coin]["rsi"]
         curr_p = crypto_cache[coin]["price_num"]
         bb_l = crypto_cache[coin]["bb_lower"]
+        supp = crypto_cache[coin]["support"]
         inst_id = crypto_cache[coin]["inst_id"]
 
         is_strong_dip = (rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)
@@ -260,12 +268,13 @@ def check_auto_trade_signals():
                     max_prices_during_trade[coin] = curr_p
                     daily_stats["total_trades"] += 1
                     send_telegram(
-                        f"🚨 *[SEPET BÖLÜŞTÜRME ALIMI]*\n"
+                        f"🚨 *[MUM ÇİZGİSİ / DESTEK ALIMI]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
-                        f"💰 **Ayrılan Tutar (Sepet Payı):** `{trade_amount}` USDT\n"
-                        f"📊 **Sinyal:** RSI `{rsi}`\n"
+                        f"🎯 **Test Edilen Destek Çizgisi:** `{supp:,.2f}` $\n"
+                        f"💰 **Sepet Bütçesi:** `{trade_amount}` USDT\n"
+                        f"📊 **RSI:** `{rsi}`\n"
                         f"━━━━━━━━━━━━━━━━━━━",
                         disable_notification=False
                     )
@@ -298,79 +307,24 @@ def check_auto_trade_signals():
                 daily_stats["total_profit_pct"] += pnl_pct
                 send_telegram(f"🏆 *[ZİRVE SATIŞI]* `{coin.upper()}` toplam kâr: `+%{pnl_pct*100:.2f}`", disable_notification=False)
 
-def check_instant_movement():
-    global last_alert_prices
-    coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
-    for coin_id in coins:
-        curr_p = crypto_cache[coin_id]["price_num"]
-        prev_p = last_alert_prices[coin_id]
-        if prev_p == 0.0:
-            last_alert_prices[coin_id] = curr_p
-            continue
-        if curr_p > 0 and prev_p > 0:
-            change_pct = ((curr_p - prev_p) / prev_p) * 100
-            if change_pct >= 1.5:
-                last_alert_prices[coin_id] = curr_p
-                send_telegram(f"🚀 *SATIŞ / KÂR AL SİNYALİ! ({coin_id.upper()})* -> `+{change_pct:.2f}%`", disable_notification=False)
-            elif change_pct <= -1.5:
-                last_alert_prices[coin_id] = curr_p
-                send_telegram(f"🛡️ *DIP ALARMI! ({coin_id.upper()})* -> `{change_pct:.2f}%`", disable_notification=False)
-
-def check_custom_price_alerts():
-    global custom_target_alerts
-    for coin_id, targets in list(custom_target_alerts.items()):
-        curr_p = crypto_cache[coin_id]["price_num"]
-        if curr_p == 0.0: continue
-        for target_p in list(targets):
-            if curr_p >= target_p:
-                send_telegram(f"🎯 *HEDEF FİYAT ALARMI! ({coin_id.upper()})* -> `{curr_p:,.2f} $`", disable_notification=False)
-                targets.remove(target_p)
-        if not targets:
-            del custom_target_alerts[coin_id]
-
-def get_okx_balance():
-    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return "⚠️ OKX API anahtarları eksik!"
-    request_path = "/api/v5/account/balance"
-    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-    message = timestamp + "GET" + request_path
-    mac = hmac.new(OKX_SECRET_KEY.encode('utf-8'), message.encode('utf-8'), hashlib.sha256)
-    sign = base64.b64encode(mac.digest()).decode('utf-8')
-    headers = {
-        "OK-ACCESS-KEY": OKX_API_KEY, "OK-ACCESS-SIGN": sign,
-        "OK-ACCESS-TIMESTAMP": timestamp, "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
-        "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"
-    }
-    url = f"https://www.okx.com{request_path}"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res = json.loads(response.read().decode())
-            if res.get("code") == "0" and res.get("data"):
-                details = res["data"][0].get("details", [])
-                if not details: return "💼 *Cüzdan boş.*"
-                msg = "💼 *OKX TR CÜZDAN BAKİYESİ*\n\n"
-                for coin in details:
-                    if float(coin.get("eq", "0")) > 0:
-                        msg += f"🪙 *{coin.get('ccy')}*: `{float(coin.get('eq', '0')):.4f}`\n"
-                return msg
-            else:
-                return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
-    except Exception as e:
-        return f"❌ Bağlantı Hatası: {e}"
-
 def generate_analiz_report():
     fetch_live_data()
-    msg = "📡 *APEX SEPET ANALİZİ*\n\n"
+    msg = "📡 *APEX MUM ÇİZGİSİ VE DESTEK ANALİZİ*\n\n"
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
     for coin in coins:
         p_str = crypto_cache[coin]['price']
         rsi_v = crypto_cache[coin]['rsi']
-        bb_l = crypto_cache[coin]['bb_lower']
+        supp = crypto_cache[coin]['support']
+        res_lvl = crypto_cache[coin]['resistance']
         p_num = crypto_cache[coin]['price_num']
-        signal = calculate_precision_signal(rsi_v, p_num, bb_l)
-        msg += f"🪙 **{coin.upper()[:3]}:** `{p_str}` $ | RSI: `{rsi_v}` -> *{signal}*\n"
-    msg += f"\n💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL"
+        signal = calculate_precision_signal(rsi_v, p_num, crypto_cache[coin]['bb_lower'])
+        
+        msg += f"🪙 **{coin.upper()[:3]}:** `{p_str}` $\n"
+        msg += f" ├ 📍 **Hedef Alım Desteği (Mum Çizgisi):** `{supp:,.2f}` $\n"
+        msg += f" ├ 🎯 **Tepe Direnç Çizgisi:** `{res_lvl:,.2f}` $\n"
+        msg += f" └ 📊 RSI: `{rsi_v}` -> *{signal}*\n\n"
+    
+    msg += f"💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL"
     return msg
 
 def handle_message(raw_text, chat_id):
@@ -380,7 +334,7 @@ def handle_message(raw_text, chat_id):
 
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
-        send_telegram("🚀 *APEX BOT AKTİF (AKILLI SEPET & BÖLÜŞTÜRME MODU)*", chat_id)
+        send_telegram("🚀 *APEX BOT AKTİF (MUM ÇİZGİSİ & DESTEK TAKİP MODU)*", chat_id)
     elif text in ["/stop", "stop"]:
         AUTO_TRADE_ENABLED = False
         send_telegram("🛑 *OTOMATİK MOTOR DURDURULDU!*", chat_id)
@@ -424,8 +378,6 @@ def background_scanner():
         try:
             fetch_live_data()
             check_auto_trade_signals()
-            check_instant_movement()
-            check_custom_price_alerts()
         except Exception as e:
             print(f"Tarama hatası: {e}")
         time.sleep(20)
@@ -480,7 +432,7 @@ DASHBOARD_PRO_HTML = """
         <div class="navbar">
             <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF (SEPET MODU)' if auto_enabled else '🔴 BOT PAUSE' }}
+                {{ '🟢 BOT AKTİF (DESTEK MODU)' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 

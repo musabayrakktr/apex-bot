@@ -65,3 +65,4 @@ def analyze_market_for_dip(symbol="BTC-USDT"):
         return True, current_price, rsi, "🔥 En Dip Nokta Tespiti (Alım Fırsatı)"
     
     return False, current_price, rsi, "Düşüş Devam Ediyor / Dip Bekleniyor"
+    

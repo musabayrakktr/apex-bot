@@ -27,12 +27,12 @@ TRAILING_TRIGGER = 0.02
 TRAILING_STOP = 0.01      
 
 crypto_cache = {
-    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
-    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
-    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:SOLUSDT"},
-    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:AVAXUSDT"},
-    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:LINKUSDT"},
-    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "tv_symbol": "BINANCE:NEARUSDT"},
+    "bitcoin": {"inst_id": "BTC-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:BTCUSDT"},
+    "ethereum": {"inst_id": "ETH-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:ETHUSDT"},
+    "solana": {"inst_id": "SOL-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:SOLUSDT"},
+    "avalanche": {"inst_id": "AVAX-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:AVAXUSDT"},
+    "chainlink": {"inst_id": "LINK-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:LINKUSDT"},
+    "near": {"inst_id": "NEAR-USDT", "price_num": 0.0, "price": "0.00", "rsi": 50.0, "bb_lower": 0.0, "support": 0.0, "resistance": 0.0, "low_24h": 0.0, "high_24h": 0.0, "tv_symbol": "BINANCE:NEARUSDT"},
     "dolar": {"price": "0.00"},
     "gram_altin": {"price": "0.00"},
     "ceyrek_altin": {"price": "0.00"}
@@ -180,13 +180,17 @@ def calculate_rsi_bb_and_levels(closes, lows, highs, period=14):
 
 def fetch_okx_ticker_and_indicators(inst_id):
     price, rsi_value, bb_lower, supp, res_lvl = 0.0, 50.0, 0.0, 0.0, 0.0
+    low_24h, high_24h = 0.0, 0.0
     try:
         url_ticker = f"https://www.okx.com/api/v5/market/ticker?instId={inst_id}"
         req_t = urllib.request.Request(url_ticker, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_t, timeout=5) as response:
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
-                price = float(res["data"][0]["last"])
+                ticker_data = res["data"][0]
+                price = float(ticker_data["last"])
+                low_24h = float(ticker_data.get("low24h", price))
+                high_24h = float(ticker_data.get("high24h", price))
         url_candles = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar=15m&limit=30"
         req_c = urllib.request.Request(url_candles, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_c, timeout=5) as response:
@@ -201,13 +205,13 @@ def fetch_okx_ticker_and_indicators(inst_id):
                 rsi_value, bb_lower, supp, res_lvl = calculate_rsi_bb_and_levels(closes, lows, highs)
     except Exception as e:
         print(f"OKX Veri hatası ({inst_id}): {e}")
-    return price, rsi_value, bb_lower, supp, res_lvl
+    return price, rsi_value, bb_lower, supp, res_lvl, low_24h, high_24h
 
 def fetch_live_data():
     global crypto_cache
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
     for coin in coins:
-        p, rsi, bb_l, supp, res_lvl = fetch_okx_ticker_and_indicators(crypto_cache[coin]["inst_id"])
+        p, rsi, bb_l, supp, res_lvl, l24, h24 = fetch_okx_ticker_and_indicators(crypto_cache[coin]["inst_id"])
         if p > 0:
             crypto_cache[coin]["price_num"] = p
             crypto_cache[coin]["price"] = f"{p:,.2f}"
@@ -215,8 +219,10 @@ def fetch_live_data():
             crypto_cache[coin]["bb_lower"] = bb_l
             crypto_cache[coin]["support"] = supp
             crypto_cache[coin]["resistance"] = res_lvl
+            crypto_cache[coin]["low_24h"] = l24
+            crypto_cache[coin]["high_24h"] = h24
     try:
-        usdt_p, _, _, _, _ = fetch_okx_ticker_and_indicators("USDT-TRY")
+        usdt_p, _, _, _, _, _, _ = fetch_okx_ticker_and_indicators("USDT-TRY")
         if usdt_p > 0:
             crypto_cache["dolar"]["price"] = f"{usdt_p:.2f}"
             url_gold = "https://api.gold-api.com/price/XAU"
@@ -256,9 +262,14 @@ def check_auto_trade_signals():
         curr_p = crypto_cache[coin]["price_num"]
         bb_l = crypto_cache[coin]["bb_lower"]
         supp = crypto_cache[coin]["support"]
+        l24 = crypto_cache[coin]["low_24h"]
+        h24 = crypto_cache[coin]["high_24h"]
         inst_id = crypto_cache[coin]["inst_id"]
 
-        is_strong_dip = (rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)
+        is_near_24h_low = (l24 > 0 and curr_p <= l24 * 1.02)
+        is_near_24h_high = (h24 > 0 and curr_p >= h24 * 0.985)
+
+        is_strong_dip = ((rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)) and is_near_24h_low
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             if avail_usdt >= trade_amount and trade_amount >= 5.0:
@@ -271,11 +282,12 @@ def check_auto_trade_signals():
                     max_prices_during_trade[coin] = curr_p
                     daily_stats["total_trades"] += 1
                     send_telegram(
-                        f"🚨 *[MUM ÇİZGİSİ / DESTEK ALIMI]*\n"
+                        f"🚨 *[MUM ÇİZGİSİ / DESTEK / 24S DİP ALIMI]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
                         f"🎯 **Test Edilen Destek Çizgisi:** `{supp:,.2f}` $\n"
+                        f"📉 **24 Saatin En Düşüğü:** `{l24:,.2f}` $\n"
                         f"💰 **Sepet Bütçesi:** `{trade_amount}` USDT\n"
                         f"📊 **RSI:** `{rsi}`\n"
                         f"━━━━━━━━━━━━━━━━━━━",
@@ -286,7 +298,6 @@ def check_auto_trade_signals():
             entry_p = buy_prices[coin]
             pnl_pct = (curr_p - entry_p) / entry_p
             
-            # TL VE USDT CİNSİNDEN KÂR/ZARAR HESABI
             invested_usdt = trade_amounts.get(coin, 6.0)
             profit_usdt = invested_usdt * pnl_pct
             profit_tl = profit_usdt * usdt_try
@@ -313,20 +324,22 @@ def check_auto_trade_signals():
                     disable_notification=False
                 )
 
-            elif rsi >= 70:
+            elif rsi >= 70 or is_near_24h_high:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
+                reason_str = "RSI TAVAN SEVİYESİNE ULAŞTI" if rsi >= 70 else "24S EN YÜKSEK SEVİYESİNE YAKLAŞILDI"
                 send_telegram(
-                    f"🔴 *[RSI TAVAN SEVİYESİNE ULAŞTI - SATIŞ YAPILDI]*\n"
+                    f"🔴 *[{reason_str} - SATIŞ YAPILDI]*\n"
                     f"━━━━━━━━━━━━━━━━━━━\n"
                     f"🪙 **Coin:** `{coin.upper()}`\n"
                     f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
                     f"📊 **RSI Seviyesi:** `{rsi}`\n"
+                    f"📈 **24 Saatin En Yükseği:** `{h24:,.2f}` $\n"
                     f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
                     f"💰 **Net Kazanılan Kâr:** `{tl_str}`\n"
-                    f"💬 **Açıklama:** RSI aşırı alım bölgesine çıktığı için kârı korumak amacıyla satıldı!\n"
+                    f"💬 **Açıklama:** Tepe kâr realizasyonu için otomatik satış yapıldı!\n"
                     f"━━━━━━━━━━━━━━━━━━━",
                     disable_notification=False
                 )

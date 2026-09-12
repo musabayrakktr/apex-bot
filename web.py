@@ -21,5 +21,6 @@ def api_status():
         "try_rate": f"{try_rate:.2f}"
     })
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+def render_dashboard():
+    """main.py dosyasının çağırdığı eksik fonksiyon"""
+    app.run(host='0.0.0.0', port=10000)

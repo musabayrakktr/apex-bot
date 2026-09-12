@@ -20,8 +20,9 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 AUTO_TRADE_ENABLED = True
 
-STOP_LOSS_PCT = 0.025     
-TAKE_PROFIT_PCT = 0.035   
+# --- 1000 TL ➔ 1500 TL HEDEFİ İÇİN OPTİMİZE RİSK/KÂR ORANLARI ---
+STOP_LOSS_PCT = 0.02      # Küçük kasayı korumak için %2 risk sınırı
+TAKE_PROFIT_PCT = 0.04    # 1000 TL'yi büyütmek için %4 ideal kâr hedefi
 TRAILING_TRIGGER = 0.02   
 TRAILING_STOP = 0.01      
 
@@ -221,10 +222,9 @@ def fetch_live_data():
         print(f"Borsa Kur Hatası: {e}")
 
 def calculate_precision_signal(rsi_val, curr_price, bb_lower):
-    # ESNETİLMİŞ RSI EŞİKLERİ (Botun daha rahat işlem alması için)
-    if rsi_val <= 42 and (bb_lower > 0 and curr_price <= bb_lower * 1.01):
+    if rsi_val <= 45 and (bb_lower > 0 and curr_price <= bb_lower * 1.01):
         return "🟢 ÇOKLU GÖSTERGE DİBİ"
-    elif rsi_val <= 48: return "🟢 KADEMELİ ALIM UYGUN"
+    elif rsi_val <= 50: return "🟢 KADEMELİ ALIM UYGUN"
     elif rsi_val >= 68: return "🔴 KESİN SATIŞ BÖLGESİ"
     elif rsi_val >= 55: return "🟡 KÂR REALİZASYONU YAKIN"
     else: return "⚪ NÖTR (Sermaye Koruma)"
@@ -241,12 +241,12 @@ def check_auto_trade_signals():
         bb_l = crypto_cache[coin]["bb_lower"]
         inst_id = crypto_cache[coin]["inst_id"]
 
-        # ESNETİLMİŞ ALIM KOŞULU (Artık piyasa daha kolay tetiklenecek)
-        is_strong_dip = (rsi <= 45) or (rsi <= 48 and bb_l > 0 and curr_p <= bb_l * 1.008)
+        # 1000 TL Kasa için optimize edilmiş esnek alım koşulu
+        is_strong_dip = (rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             avail_usdt = get_usdt_balance_num()
-            trade_amount = round(min(avail_usdt, 50.0), 2)
+            trade_amount = round(min(avail_usdt, 30.0), 2) # Küçük kasa için bütçe optimize edildi
             if trade_amount >= 5.0:
                 success, msg = execute_okx_order(inst_id, "buy", sz=trade_amount, sz_type="quote_ccy")
                 if success:
@@ -254,8 +254,9 @@ def check_auto_trade_signals():
                     partial_tp_done[coin] = False
                     buy_prices[coin] = curr_p
                     max_prices_during_trade[coin] = curr_p
+                    daily_stats["total_trades"] += 1  # İŞLEM SAYACINI ANINDA ARTIYORUZ Kİ RAPORDA GÖZÜKSÜN!
                     send_telegram(
-                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI (ESNEK MOD)]*\n"
+                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI (1000 TL HEDEF MOD)]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
@@ -278,7 +279,6 @@ def check_auto_trade_signals():
             if pnl_pct <= -STOP_LOSS_PCT:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
-                daily_stats["total_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
                 send_telegram(
                     f"🛑 *[İŞLEM BİLDİRİMİ: STOP-LOSS]*\n"
@@ -294,6 +294,8 @@ def check_auto_trade_signals():
             elif pnl_pct >= TAKE_PROFIT_PCT and not partial_tp_done[coin]:
                 execute_okx_order(inst_id, "sell", sz="50%", sz_type="base_ccy")
                 partial_tp_done[coin] = True
+                daily_stats["successful_trades"] += 1
+                daily_stats["total_profit_pct"] += pnl_pct
                 send_telegram(
                     f"🎯 *[İŞLEM BİLDİRİMİ: KADEMELİ KÂR AL]*\n"
                     f"━━━━━━━━━━━━━━━━━━━\n"
@@ -307,7 +309,6 @@ def check_auto_trade_signals():
             elif (max_p - entry_p) / entry_p >= TRAILING_TRIGGER and drop_from_peak >= TRAILING_STOP:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
-                daily_stats["total_trades"] += 1
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
                 send_telegram(
@@ -416,8 +417,8 @@ def handle_message(raw_text, chat_id):
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
         start_msg = (
-            "🚀 *APEX MULTI-HARVESTER DEVREDE (ESNEK MOD)*\n\n"
-            "Hoş geldin patron! 5.000 TL Çoklu Altcoin Sepeti (BTC, ETH, SOL, AVAX, LINK, NEAR), güncellenmiş esnek RSI süzgeci ve kademeli kâr alma motoru aktif.\n\n"
+            "🚀 *APEX MULTI-HARVESTER DEVREDE (1000 TL ➔ 1500 TL HEDEF MOD)*\n\n"
+            "Hoş geldin patron! 1000 TL kasa yönetimi, optimize edilmiş esnek RSI süzgeci ve kademeli kâr alma motoru aktif.\n\n"
             "📌 Menüden komutlara erişebilirsin."
         )
         send_telegram(start_msg, chat_id)
@@ -469,7 +470,7 @@ def handle_message(raw_text, chat_id):
 
     elif text in ["/rapor", "rapor"]:
         rapor_msg = (
-            "📊 *APEX PERFORMANS RAPORU*\n\n"
+            "📊 *APEX PERFORMANS RAPORU (1000 TL HEDEF)*\n\n"
             f"🔄 **Toplam İşlem:** `{daily_stats['total_trades']}`\n"
             f"✅ **Başarılı İşlem:** `{daily_stats['successful_trades']}`\n"
             f"📈 **Toplam Oransal Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`\n\n"
@@ -484,7 +485,7 @@ def handle_message(raw_text, chat_id):
     elif text in ["/ceyrek", "çeyrek"]:
         send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
     elif text in ["/test", "test"]:
-        send_telegram("✅ *Multi-Harvester Esnek Mod Tamamen Aktif!*", chat_id)
+        send_telegram("✅ *1000 TL Hedef Modu Tamamen Aktif!*", chat_id)
 
 def telegram_polling_listener():
     offset = 0
@@ -585,7 +586,7 @@ DASHBOARD_PRO_HTML = """
         <div class="navbar">
             <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF (ESNEK)' if auto_enabled else '🔴 BOT PAUSE' }}
+                {{ '🟢 BOT AKTİF (1000₺ HEDEF)' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 

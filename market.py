@@ -1,5 +1,5 @@
 def get_live_market_data():
-    """Dolar, Gram Altın, Çeyrek Altın ve Kripto verilerini çeken servis"""
+    """Dolar, Gram Altın, Çeyrek Altın ve Kripto piyasa kurlarını çeken servis"""
     return {
         "dolar": "34.20 TL",
         "gram_altin": "2,850.00 TL",

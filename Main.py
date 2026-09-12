@@ -12,7 +12,6 @@ app = Flask(__name__)
 
 def telegram_polling_listener():
     offset = 0
-    # Eski webhook kalıntılarını temizle
     try:
         urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
     except: 
@@ -42,10 +41,8 @@ def home():
     return render_dashboard()
 
 if __name__ == '__main__':
-    # Telegram dinleyicisini arka plan thread'inde başlatıyoruz
     t = threading.Thread(target=telegram_polling_listener, daemon=True)
     t.start()
     
-    # Render'ın verdiği dinamik portu alıyoruz (Yoksa varsayılan 10000)
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)

@@ -1,6 +1,6 @@
 import json
 import urllib.request
-from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS, COIN_BUDGET_TL
+from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
 from market import get_live_market_data
 from trader import get_account_balance
 
@@ -8,7 +8,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX Bakiye & Kapasite Durumu"},
+        {"command": "cuzdan", "description": "💰 OKX USDT Bakiye & Kapasite"},
         {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
@@ -42,7 +42,7 @@ def handle_message(raw_text, chat_id):
             "🤖 *APEX BOT - SİSTEM AKTİF*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "📋 *Komut Listesi:*\n"
-            "🔹 `/cuzdan` - Güncel bakiye & bütçe kapasitesi\n"
+            "🔹 `/cuzdan` - Güncel USDT bakiyesi & kapasite\n"
             "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
             "🔹 `/rapor` - Açık pozisyonlar ve durum\n"
             "🔹 `/kur` - Canlı piyasa kurları\n"
@@ -51,12 +51,9 @@ def handle_message(raw_text, chat_id):
             "🔹 `/stop` - Oto Motoru Durdur",
             chat_id
         )
-        elif text == "/cuzdan":
+    elif text == "/cuzdan":
         bakiye_usdt = get_account_balance()
-        
-        # Her coin için ayırmak istediğin USDT bütçesi (Örn: 10 USDT)
-        coin_butce_usdt = 10.0  
-        
+        coin_butce_usdt = 10.0  # Pozisyon başı bütçe (USDT)
         max_pozisyon = int(bakiye_usdt // coin_butce_usdt)
         acik_poz = len(ACTIVE_POSITIONS)
         kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
@@ -70,7 +67,6 @@ def handle_message(raw_text, chat_id):
             f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
             chat_id
         )
-
     elif text == "/analiz":
         m = get_live_market_data()
         send_telegram(

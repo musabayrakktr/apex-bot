@@ -284,7 +284,8 @@ def check_auto_trade_signals():
         is_near_24h_low = (l24 > 0 and curr_p <= l24 * 1.02)
         is_near_24h_high = (h24 > 0 and curr_p >= h24 * 0.985)
 
-        is_strong_dip = ((rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)) and is_near_24h_low
+        # ESNEK ALIM MANTIĞI: (24s Dibi VEYA RSI Dip VEYA Bollinger Alt Bandı Teması)
+        is_strong_dip = is_near_24h_low or (rsi <= 45) or (bb_l > 0 and curr_p <= bb_l * 1.01)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
             if avail_usdt >= trade_amount and trade_amount >= 5.0:
@@ -297,7 +298,7 @@ def check_auto_trade_signals():
                     max_prices_during_trade[coin] = curr_p
                     daily_stats["total_trades"] += 1
                     send_telegram(
-                        f"🚨 *[MUM ÇİZGİSİ / DESTEK / 24S DİP ALIMI]*\n"
+                        f"🚨 *[KÂR FIRSATI / DESTEK ALIMI]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"

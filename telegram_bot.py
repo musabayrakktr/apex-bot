@@ -52,21 +52,29 @@ def handle_message(raw_text, chat_id):
             chat_id
         )
     elif text == "/cuzdan":
-        toplam_varlik_usdt = get_account_balance()
-        coin_butce_usdt = 10.0  # Pozisyon başı ayrılacak bütçe (USDT)
-        max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
-        acik_poz = len(ACTIVE_POSITIONS)
-        kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
+        bakiye_yaniti = get_account_balance()
+        coin_butce_usdt = 10.0
         
-        send_telegram(
-            f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🌐 *Toplam Varlık Değeri:* `{toplam_varlik_usdt:,.2f} USDT`\n"
-            f"🛡️ *İşlem Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
-            f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
-            f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
-            chat_id
-        )
+        # Eğer OKX'ten doğrudan sayısal bakiye geldiyse
+        if isinstance(bakiye_yaniti, (int, float)):
+            toplam_varlik_usdt = float(bakiye_yaniti)
+            max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
+            acik_poz = len(ACTIVE_POSITIONS)
+            kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
+            
+            send_telegram(
+                f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🌐 *Toplam Varlık Değeri:* `{toplam_varlik_usdt:,.2f} USDT`\n"
+                f"🛡️ *İşlem Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
+                f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
+                f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
+                chat_id
+            )
+        else:
+            # Hata metni veya özel yanıt geldiyse doğrudan bas
+            send_telegram(f"💰 *APEX CANLI CÜZDAN RAPORU*\n━━━━━━━━━━━━━━━━━━━\n{bakiye_yaniti}", chat_id)
+
     elif text == "/analiz":
         m = get_live_market_data()
         send_telegram(

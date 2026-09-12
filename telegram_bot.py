@@ -1,6 +1,6 @@
 import json
 import urllib.request
-from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY
+from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
 from market import get_live_market_data
 
 def send_telegram(message, chat_id=CHAT_ID):
@@ -23,8 +23,8 @@ def handle_message(raw_text, chat_id):
             "📋 *Komut Listesi:*\n"
             "🔹 `/cuzdan` - Güncel bakiye durumu\n"
             "🔹 `/analiz` - 5m & 15m piyasa raporu\n"
-            "🔹 `/piyasa` - Dolar, Gram ve Çeyrek Altın kurları\n"
-            "🔹 `/rapor` - Genel sistem ve piyasa özeti\n"
+            "🔹 `/rapor` - Günlük rapor & Aktif pozisyonlar\n"
+            "🔹 `/kur` - Dolar, Altın ve BTC kurları\n"
             "🔹 `/gecmis` - Geçmiş işlem dökümü",
             chat_id
         )
@@ -49,27 +49,24 @@ def handle_message(raw_text, chat_id):
             f"🕒 *Durum:* Otomatik tarama aktif",
             chat_id
         )
-    elif text == "/piyasa":
+    elif text == "/rapor":
+        rapor_metni = "📅 *APEX GÜNLÜK İŞLEM RAPORU*\n━━━━━━━━━━━━━━━━━━━\n"
+        rapor_metni += "🚀 *Şuan İşlemde Olan Coinler:*\n"
+        for p in ACTIVE_POSITIONS:
+            rapor_metni += f"🔹 *{p['parite']}* | {p['yon']} | Giriş: `{p['giris']}` | K/Z: *{p['kar_zarar']}*\n"
+        rapor_metni += "\n🛡️ *Günlük Durum:* Bot stabil çalışıyor, risk yönetimi aktif."
+        send_telegram(rapor_metni, chat_id)
+    elif text in ["/kur", "/piyasa"]:
         m = get_live_market_data()
         send_telegram(
-            f"🇪🇺🇹🇷 *CANLI PİYASA KURLARI*\n"
+            f"💱 *CANLI PİYASA & KUR EKRANI*\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🪙 *Bitcoin (BTC):* `{m['btc_fiyat']}`\n"
             f"💵 *Dolar / TL:* `{m['dolar']}`\n"
             f"🟡 *Gram Altın:* `{m['gram_altin']}`\n"
             f"🪙 *Çeyrek Altın:* `{m['ceyrek_altin']}`\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"🕒 *Veri Kaynağı:* Anlık Takip Modülü",
-            chat_id
-        )
-    elif text == "/rapor":
-        m = get_live_market_data()
-        send_telegram(
-            f"📊 *APEX GENEL DURUM RAPORU*\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 *Kasa:* `19.71 USDT`\n"
-            f"🪙 *BTC Fiyat:* `{m['btc_fiyat']}`\n"
-            f"💵 *Dolar:* `{m['dolar']}` | 🟡 *Altın:* `{m['gram_altin']}`\n"
-            f"🛡️ *Sistem:* Modüler Altyapı Aktif 🚀",
+            f"🕒 *Veri Kaynağı:* Anlık Kur Takip Modülü",
             chat_id
         )
     elif text == "/gecmis":

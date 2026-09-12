@@ -616,7 +616,7 @@ DASHBOARD_PRO_HTML = """
 
 @app.route('/')
 def home():
-    fetch_live_data()
+    fetch_live.data()
     coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
     usdt_bal = get_usdt_balance_num()
     return render_template_string(

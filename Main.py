@@ -123,6 +123,21 @@ def get_usdt_balance_num():
         print(f"Bakiye okuma hatası: {e}")
     return 0.0
 
+def get_okx_balance():
+    usdt = get_usdt_balance_num()
+    try:
+        usdt_try = float(crypto_cache["dolar"]["price"])
+    except:
+        usdt_try = 48.5
+    try_val = usdt * usdt_try
+    return (
+        f"💼 *OKX TR CÜZDAN BAKİYESİ*\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"💵 **Kullanılabilir USDT:** `{usdt:.2f}` USDT\n"
+        f"₺ **Tahmini TL Karşılığı:** `{try_val:,.2f}` TL\n"
+        f"━━━━━━━━━━━━━━━━━━━"
+    )
+
 def execute_okx_order(inst_id, side, sz="1", sz_type="base_ccy"):
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return False, "API anahtarları eksik."

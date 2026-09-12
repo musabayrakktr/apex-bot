@@ -10,12 +10,12 @@ def generate_signature(timestamp, method, request_path, body=""):
     mac = hmac.new(bytes(OKX_SECRET_KEY, encoding='utf-8'), bytes(message, encoding='utf-8'), digestmod='sha256')
     return base64.b64encode(mac.digest()).decode('utf-8')
 
-def get_ticker_price_in_usdt(ccy, base_url):
+def get_ticker_price_in_usdt(ccy, base_url, headers_base):
     if ccy == "USDT":
         return 1.0
     try:
         ticker_url = f"{base_url}/api/v5/market/ticker?instId={ccy}-USDT"
-        req = urllib.request.Request(ticker_url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(ticker_url, headers=headers_base)
         with urllib.request.urlopen(req, timeout=3) as res:
             t_data = json.loads(res.read().decode())
             if t_data.get("data"):
@@ -32,6 +32,7 @@ def get_account_balance():
     timestamp = str(time.time()).split('.')[0] + '.' + str(time.time()).split('.')[1][:3]
     
     headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "OK-ACCESS-KEY": OKX_API_KEY,
         "OK-ACCESS-SIGN": generate_signature(timestamp, "GET", path, ""),
         "OK-ACCESS-TIMESTAMP": timestamp,
@@ -61,17 +62,14 @@ def get_account_balance():
                         if ccy == "USDT":
                             total_usdt_value += eq
                         elif ccy == "TRY":
-                            usdt_try = get_ticker_price_in_usdt("USDT-TRY", base_url)
+                            usdt_try = get_ticker_price_in_usdt("USDT-TRY", base_url, {"User-Agent": headers["User-Agent"]})
                             price = usdt_try if usdt_try > 0 else 34.20
                             total_usdt_value += (eq / price)
                         else:
-                            coin_price = get_ticker_price_in_usdt(ccy, base_url)
+                            coin_price = get_ticker_price_in_usdt(ccy, base_url, {"User-Agent": headers["User-Agent"]})
                             total_usdt_value += (eq * coin_price)
                     
-                    if total_usdt_value > 0:
-                        return f"{total_usdt_value:,.2f} USDT"
-                    else:
-                        return "0.00 USDT (Hesapta varlık bulunamadı)"
+                    return round(total_usdt_value, 2)
                 else:
                     hata_mesajlari.append(f"{base_url} -> KOD: {data.get('code')} MSG: {data.get('msg')}")
         except Exception as e:

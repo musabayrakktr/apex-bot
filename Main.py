@@ -2,6 +2,7 @@ import os
 import threading
 import time
 import urllib.request
+import json
 from flask import Flask
 from config import TELEGRAM_TOKEN
 from telegram_bot import handle_message
@@ -19,7 +20,6 @@ def telegram_polling_listener():
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={offset}&timeout=20"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=25) as response:
-                import json
                 data = json.loads(response.read().decode())
                 if data.get("ok") and data.get("result"):
                     for update in data["result"]:
@@ -33,8 +33,6 @@ def home():
     return render_dashboard()
 
 if __name__ == '__main__':
-    # Arka planda Telegram dinleyicisini başlat
     threading.Thread(target=telegram_polling_listener, daemon=True).start()
-    
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)

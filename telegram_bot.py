@@ -51,22 +51,23 @@ def handle_message(raw_text, chat_id):
             "🔹 `/stop` - Oto Motoru Durdur",
             chat_id
         )
-    elif text == "/cuzdan":
-        bakiye_usdt = get_account_balance()
-        coin_butce_usdt = 10.0  # Pozisyon başı bütçe (USDT)
-        max_pozisyon = int(bakiye_usdt // coin_butce_usdt)
+        elif text == "/cuzdan":
+        toplam_varlik_usdt = get_account_balance()
+        coin_butce_usdt = 10.0  # Pozisyon başı ayrılan bütçe (USDT)
+        max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
         acik_poz = len(ACTIVE_POSITIONS)
         kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
         
         send_telegram(
             f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"💵 *Toplam Bakiye:* `{bakiye_usdt:,.2f} USDT`\n"
+            f"🌐 *Toplam Varlık Değeri:* `{toplam_varlik_usdt:,.2f} USDT`\n"
             f"🛡️ *İşlem Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
             f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
             f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
             chat_id
         )
+
     elif text == "/analiz":
         m = get_live_market_data()
         send_telegram(

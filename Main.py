@@ -47,6 +47,9 @@ max_prices_during_trade = {k: 0.0 for k in crypto_cache if k not in ["dolar", "g
 daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
 trade_history = []  # Geçmiş İşlem Kayıt Defteri
 
+last_report_time = time.time()
+REPORT_INTERVAL = 900  # 15 Dakika (900 saniye)
+
 def send_telegram(message, chat_id=CHAT_ID, disable_notification=False):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -73,7 +76,13 @@ def set_telegram_commands():
         {"command": "cuzdan", "description": "💼 OKX TR Cüzdan Bakiyesini Gör"},
         {"command": "rapor", "description": "📊 Geçmiş İşlemler ve Performans"},
         {"command": "stop", "description": "🛑 Oto Motoru Durdur"},
-        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"}
+        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"},
+        {"command": "btc", "description": "🪙 Bitcoin Anlık"},
+        {"command": "eth", "description": "🪙 Ethereum Anlık"},
+        {"command": "sol", "description": "🪙 Solana Anlık"},
+        {"command": "dolar", "description": "💵 USD/TL Kuru"},
+        {"command": "gram", "description": "🥇 Gram Altın"},
+        {"command": "ceyrek", "description": "🥇 Çeyrek Altın"}
     ]
     payload = {"commands": commands}
     data = json.dumps(payload).encode('utf-8')
@@ -193,7 +202,7 @@ def fetch_okx_ticker_and_indicators(inst_id):
                 price = float(ticker_data["last"])
                 low_24h = float(ticker_data.get("low24h", price))
                 high_24h = float(ticker_data.get("high24h", price))
-        url_candles = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar=5m&limit=30" # 5 Dakikalık Hızlı Mumlar
+        url_candles = f"https://www.okx.com/api/v5/market/candles?instId={inst_id}&bar=5m&limit=30"
         req_c = urllib.request.Request(url_candles, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_c, timeout=5) as response:
             res_c = json.loads(response.read().decode())
@@ -270,7 +279,7 @@ def check_auto_trade_signals():
         is_near_24h_low = (l24 > 0 and curr_p <= l24 * 1.02)
         is_near_24h_high = (h24 > 0 and curr_p >= h24 * 0.985)
 
-        # HIZLI SKALPING ALIM ŞARTI (RSI <= 53 VEYA 24s Dibi VEYA Destek Teması)
+        # HIZLI SKALPING ALIM ŞARTI
         is_strong_dip = is_near_24h_low or (rsi <= 53) or (bb_l > 0 and curr_p <= bb_l * 1.01)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
@@ -336,7 +345,6 @@ def check_auto_trade_signals():
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
 
-                # İŞLEM GEÇMİŞİNE EKLEME (TL VE $ CİNSİNDEN DETAYLI KAYIT)
                 now_str = datetime.now().strftime("%H:%M")
                 trade_record = {
                     "time": now_str,
@@ -442,6 +450,18 @@ def handle_message(raw_text, chat_id):
         send_telegram(generate_analiz_report(), chat_id)
     elif text in ["/rapor", "rapor"]:
         send_telegram(generate_history_report(), chat_id)
+    elif text in ["/btc", "btc"]:
+        send_telegram(f"🪙 **Bitcoin (BTC):** `{crypto_cache['bitcoin']['price']}` $", chat_id)
+    elif text in ["/eth", "eth"]:
+        send_telegram(f"🪙 **Ethereum (ETH):** `{crypto_cache['ethereum']['price']}` $", chat_id)
+    elif text in ["/sol", "sol"]:
+        send_telegram(f"🪙 **Solana (SOL):** `{crypto_cache['solana']['price']}` $", chat_id)
+    elif text in ["/dolar", "dolar"]:
+        send_telegram(f"💵 **USD/TRY Kuru:** `{crypto_cache['dolar']['price']}` TL", chat_id)
+    elif text in ["/gram", "gram"]:
+        send_telegram(f"🥇 **Gram Altın:** `{crypto_cache['gram_altin']['price']}` TL", chat_id)
+    elif text in ["/ceyrek", "ceyrek"]:
+        send_telegram(f"🥇 **Çeyrek Altın:** `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
 
 def telegram_polling_listener():
     offset = 0
@@ -462,10 +482,18 @@ def telegram_polling_listener():
         except: time.sleep(3)
 
 def background_scanner():
+    global last_report_time
     while True:
         try:
             fetch_live_data()
             check_auto_trade_signals()
+
+            # 15 DAKİKADA BİR OTOMATİK ANALİZ RAPORU GÖNDERME
+            now = time.time()
+            if now - last_report_time >= REPORT_INTERVAL:
+                send_telegram(generate_analiz_report())
+                last_report_time = now
+
         except Exception as e:
             print(f"Tarama hatası: {e}")
         time.sleep(15)
@@ -616,7 +644,7 @@ DASHBOARD_PRO_HTML = """
 
 @app.route('/')
 def home():
-    fetch_live.data()
+    fetch_live_data()
     coins_data = {k: v for k, v in crypto_cache.items() if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
     usdt_bal = get_usdt_balance_num()
     return render_template_string(

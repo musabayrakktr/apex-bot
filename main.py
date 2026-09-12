@@ -5,7 +5,7 @@ import json
 import urllib.request
 from flask import Flask
 from config import TELEGRAM_TOKEN
-from telegram_bot import handle_message
+from telegram_bot import handle_message, set_telegram_commands
 from web import render_dashboard
 
 app = Flask(__name__)
@@ -41,6 +41,9 @@ def home():
     return render_dashboard()
 
 if __name__ == '__main__':
+    # Bot başlarken menüyü emojili olarak Telegram'a kaydet
+    set_telegram_commands()
+
     t = threading.Thread(target=telegram_polling_listener, daemon=True)
     t.start()
     

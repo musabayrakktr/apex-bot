@@ -11,7 +11,6 @@ def generate_signature(timestamp, method, request_path, body=""):
     return base64.b64encode(mac.digest()).decode('utf-8')
 
 def get_ticker_price_in_usdt(ccy, base_url):
-    """Borsadaki her coin'in anlık USDT karşılığını hesaplar."""
     if ccy == "USDT":
         return 1.0
     try:
@@ -26,12 +25,8 @@ def get_ticker_price_in_usdt(ccy, base_url):
     return 0.0
 
 def get_account_balance():
-    """
-    OKX cüzdanındaki TÜM coin/nakit varlıklarını sorgular, 
-    anlık canlı kurlarla toplam USDT değerini döndürür.
-    """
     if not (OKX_API_KEY and OKX_SECRET_KEY):
-        return 27.78
+        return "⚠️ HATA: OKX_API_KEY veya OKX_SECRET_KEY Render'da bulunamadı!"
 
     path = "/api/v5/account/balance"
     timestamp = str(time.time()).split('.')[0] + '.' + str(time.time()).split('.')[1][:3]
@@ -47,6 +42,7 @@ def get_account_balance():
         headers["OK-ACCESS-PASSPHRASE"] = OKX_PASSPHRASE
 
     base_urls = ["https://tr.okx.com", "https://www.okx.com"]
+    hata_mesajlari = []
     
     for base_url in base_urls:
         try:
@@ -60,10 +56,8 @@ def get_account_balance():
                     for item in details:
                         ccy = item.get("ccy")
                         eq = float(item.get("eq", 0))
-                        
                         if eq <= 0:
                             continue
-                            
                         if ccy == "USDT":
                             total_usdt_value += eq
                         elif ccy == "TRY":
@@ -75,8 +69,12 @@ def get_account_balance():
                             total_usdt_value += (eq * coin_price)
                     
                     if total_usdt_value > 0:
-                        return total_usdt_value
+                        return f"{total_usdt_value:,.2f} USDT"
+                    else:
+                        return "0.00 USDT (Hesapta varlık bulunamadı)"
+                else:
+                    hata_mesajlari.append(f"{base_url} -> KOD: {data.get('code')} MSG: {data.get('msg')}")
         except Exception as e:
-            print(f"Bakiye tarama hatası ({base_url}): {e}")
+            hata_mesajlari.append(f"{base_url} -> Bağlantı Hatası: {str(e)}")
 
-    return 27.78
+    return "⚠️ OKX BAGLANTI HATASI:\n" + "\n".join(hata_mesajlari)

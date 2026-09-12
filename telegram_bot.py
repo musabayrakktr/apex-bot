@@ -1,6 +1,6 @@
 import json
 import urllib.request
-from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
+from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS, TARGET_COINS
 from market import get_live_market_data
 from trader import get_account_balance
 
@@ -8,7 +8,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık"},
+        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık & Otomatik Bütçe"},
         {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
@@ -42,7 +42,7 @@ def handle_message(raw_text, chat_id):
             "🤖 *APEX BOT - SİSTEM AKTİF*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "📋 *Komut Listesi:*\n"
-            "🔹 `/cuzdan` - Canlı toplam varlık & kapasite\n"
+            "🔹 `/cuzdan` - Canlı toplam varlık & otomatik bütçe\n"
             "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
             "🔹 `/rapor` - Açık pozisyonlar ve durum\n"
             "🔹 `/kur` - Canlı piyasa kurları\n"
@@ -52,27 +52,33 @@ def handle_message(raw_text, chat_id):
             chat_id
         )
     elif text == "/cuzdan":
-        bakiye_yaniti = get_account_balance()
-        coin_butce_usdt = 10.0
+        bakiye_data = get_account_balance()
+        toplam_usdt = bakiye_data["usdt"]
+        try_rate = bakiye_data["try_rate"]
+        toplam_try = toplam_usdt * try_rate
         
-        if isinstance(bakiye_yaniti, (int, float)):
-            toplam_varlik_usdt = float(bakiye_yaniti)
-            max_pozisyon = int(toplam_varlik_usdt // coin_butce_usdt)
-            acik_poz = len(ACTIVE_POSITIONS)
-            kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
+        # Hedef coin sayısına bakiyeyi eşit bölüştürme (Dinamik Hesaplama)
+        hedef_coin_sayisi = len(TARGET_COINS) if TARGET_COINS else 5
+        coin_butce_usdt = round(toplam_usdt / hedef_coin_sayisi, 2)
+        
+        # Borsa min emir koruması (minimum 5 USDT)
+        if coin_butce_usdt < 5.0:
+            coin_butce_usdt = 5.0
             
-            send_telegram(
-                f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
-                f"━━━━━━━━━━━━━━━━━━━\n"
-                f"🌐 *Toplam Varlık Değeri:* `{toplam_varlik_usdt:,.2f} USDT`\n"
-                f"🛡️ *İşlem Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
-                f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
-                f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
-                chat_id
-            )
-        else:
-            send_telegram(f"💰 *APEX CANLI CÜZDAN RAPORU*\n━━━━━━━━━━━━━━━━━━━\n{bakiye_yaniti}", chat_id)
-
+        max_pozisyon = int(toplam_usdt // coin_butce_usdt)
+        acik_poz = len(ACTIVE_POSITIONS)
+        kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
+        
+        send_telegram(
+            f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🌐 *Toplam Varlık:* `{toplam_usdt:,.2f} USDT`\n"
+            f"🇹🇷 *TL Karşılığı:* `{toplam_try:,.2f} TRY`\n"
+            f"🛡️ *Otomatik Coin Başı Bütçe:* `{coin_butce_usdt} USDT`\n"
+            f"📊 *Hedef Parite Sayısı:* `{hedef_coin_sayisi} Coin`\n"
+            f"🔄 *Aktif Pozisyon:* `{acik_poz}` | *Boş Kapasite:* `{kullanilabilir_poz}`",
+            chat_id
+        )
     elif text == "/analiz":
         m = get_live_market_data()
         send_telegram(

@@ -119,3 +119,4 @@ def handle_message(raw_text, chat_id):
             for t in TRADE_HISTORY:
                 gecmis_metni += f"🔹 *{t['parite']}* | Kâr: *{t['kar']}*\n   🕒 _{t['zaman']}_\n\n"
             send_telegram(gecmis_metni, chat_id)
+            

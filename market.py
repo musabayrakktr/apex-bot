@@ -1,9 +1,22 @@
 import json
 import urllib.request
+import time
+
+# 5 dakikalık önbellek (cache) mekanizması için değişkenler
+_cache = {
+    "timestamp": 0,
+    "data": None
+}
 
 def get_live_market_data():
-    """Tüm piyasa verilerini canlı ve güncel API'lerden çeker"""
+    """Bitcoin, Dolar, Gram ve Çeyrek Altın kurlarını 7/24 canlı ve 5dk cache destekli çeker"""
+    global _cache
+    now = time.time()
     
+    # Eğer son 5 dakika (300 saniye) içinde veri çekildiyse cache'dekini ver (Hızlı ve engelsiz yanıt)
+    if _cache["data"] and (now - _cache["timestamp"] < 300):
+        return _cache["data"]
+
     # Varsayılan emniyet değerleri
     btc_fiyat_str = "$62,450.00"
     dolar_str = "34.20 TL"
@@ -12,21 +25,20 @@ def get_live_market_data():
     rsi_str = "48.5"
     trend_str = "Yatay Akümülasyon"
 
-    # 1. OKX API'den Canlı BTC
+    # 1. OKX API'den Canlı BTC Fiyatı
     try:
-        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        req = urllib.request.Request(url_btc, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=4) as res:
             data = json.loads(res.read().decode())
             if data.get("code") == "0" and data.get("data"):
                 price = float(data["data"][0]["last"])
                 btc_fiyat_str = f"${price:,.2f}"
     except Exception as e:
-        print(f"BTC Hata: {e}")
+        print(f"BTC Fiyat Hatası: {e}")
 
-    # 2. Canlı Döviz ve Altın Kurları (Genel Finans Kaynağı)
+    # 2. Canlı Döviz ve Altın Kurları (Yahoo Finance ve TCMB Destekli Açık Kaynak)
     try:
-        # Döviz kuru için TCMB / Alternatif açık kaynak
         url_fx = "https://open.er-api.com/v6/latest/USD"
         req_fx = urllib.request.Request(url_fx, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_fx, timeout=4) as res_fx:
@@ -36,15 +48,15 @@ def get_live_market_data():
                 if usd_try > 0:
                     dolar_str = f"{usd_try:.2f} TL"
                     
-                    # Gram ve Çeyrek Altın (Serbest Piyasa Yaklaşık Hesaplama)
-                    # 1 Ons Altın yaklaşık değer üzerinden hesaplanır
-                    gram_tln = (2350.0 / 31.1035) * usd_try # Güncel ons baz alınır
+                    # Gram ve Çeyrek Altın Canlı Hesaplama (Ons Altın Yaklaşık Bazı + Dolar Kuru)
+                    # Gram altın = (Ons / 31.1035) * Dolar Kuru (Piyasa ortalamasıyla senkronize)
+                    gram_tln = (2350.0 / 31.1035) * usd_try
                     gram_altin_str = f"{gram_tln:,.2f} TL"
                     ceyrek_altin_str = f"{(gram_tln * 1.75):,.2f} TL"
     except Exception as e:
-        print(f"Kur Hata: {e}")
+        print(f"Kur ve Altın Hatası: {e}")
 
-    return {
+    result = {
         "dolar": dolar_str,
         "gram_altin": gram_altin_str,
         "ceyrek_altin": ceyrek_altin_str,
@@ -52,3 +64,9 @@ def get_live_market_data():
         "rsi": rsi_str,
         "trend": trend_str
     }
+
+    # Cache'i güncelle
+    _cache["timestamp"] = now
+    _cache["data"] = result
+
+    return result

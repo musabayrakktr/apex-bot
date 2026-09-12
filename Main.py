@@ -28,7 +28,7 @@ def send_telegram(message, chat_id=CHAT_ID):
 def handle_message(raw_text, chat_id):
     text = raw_text.lower()
     if text in ["/start", "start", "/help"]:
-        send_telegram("🤖 *Apex Bot İskelet Modunda Çalışıyor!*", chat_id)
+        send_telegram("🤖 *Apex Bot Aktif*\nSistem çalışıyor.", chat_id)
     else:
         send_telegram(f"Mesaj alındı: {raw_text}", chat_id)
 
@@ -55,15 +55,15 @@ DASHBOARD_HTML = """
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>APEX PRO İskelet Terminal</title>
+    <title>Apex Bot Terminal</title>
     <style>
         body { background-color: #0b0e14; color: #e1e7ec; font-family: sans-serif; text-align: center; padding-top: 50px; }
         h1 { color: #00f2fe; }
     </style>
 </head>
 <body>
-    <h1>⚡ APEX PRO - SIFIRLANMIŞ İSKELET SİSTEM</h1>
-    <p>Sunucu aktif, bağlantılar sağlam. Yeni stratejiyi inşa etmek için bekliyor.</p>
+    <h1>Apex Bot - Çalışma Paneli</h1>
+    <p>Sistem aktif.</p>
 </body>
 </html>
 """

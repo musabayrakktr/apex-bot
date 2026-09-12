@@ -8,7 +8,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX Canlı Bakiye & Bütçe"},
+        {"command": "cuzdan", "description": "💰 OKX Bakiye & Kapasite Durumu"},
         {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
@@ -52,11 +52,7 @@ def handle_message(raw_text, chat_id):
             chat_id
         )
     elif text == "/cuzdan":
-        # OKX'ten anlık canlı bakiyeyi çeker
         bakiye_tl = get_account_balance()
-        bakiye_usdt = bakiye_tl / 34.20
-        
-        # Kasadaki toplam paraya göre işlem açılabilecek maksimum coin sayısını hesaplar
         max_pozisyon = int(bakiye_tl // COIN_BUDGET_TL)
         acik_poz = len(ACTIVE_POSITIONS)
         kullanilabilir_poz = max(0, max_pozisyon - acik_poz)
@@ -64,9 +60,9 @@ def handle_message(raw_text, chat_id):
         send_telegram(
             f"💰 *APEX CANLI CÜZDAN RAPORU*\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
-            f"💵 *Hesap Bakiyesi:* `{bakiye_tl:,.2f} TL` (~`{bakiye_usdt:,.2f} USDT`)\n"
+            f"💵 *Toplam Varlık:* `{bakiye_tl:,.2f} TRY`\n"
             f"🛡️ *İşlem Başı Bütçe:* `{COIN_BUDGET_TL} TL`\n"
-            f"📊 *Toplam Coin Kapasitesi:* `{max_pozisyon} Adet`\n"
+            f"📊 *Toplam Alım Kapasitesi:* `{max_pozisyon} Coin`\n"
             f"🔄 *Aktif Pozisyonda:* `{acik_poz}` | *Açılabilecek Boş:* `{kullanilabilir_poz}`",
             chat_id
         )

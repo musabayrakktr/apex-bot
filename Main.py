@@ -42,6 +42,7 @@ last_alert_prices = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_al
 last_trade_state = {k: "NEUTRAL" for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 partial_tp_done = {k: False for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 buy_prices = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
+trade_amounts = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 max_prices_during_trade = {k: 0.0 for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]}
 
 daily_stats = {"total_trades": 0, "successful_trades": 0, "total_profit_pct": 0.0}
@@ -239,7 +240,7 @@ def calculate_precision_signal(rsi_val, curr_price, bb_lower):
     else: return "⚪ NÖTR (Sermaye Koruma)"
 
 def check_auto_trade_signals():
-    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, partial_tp_done
+    global last_trade_state, buy_prices, max_prices_during_trade, daily_stats, partial_tp_done, trade_amounts
     if not AUTO_TRADE_ENABLED:
         return
     
@@ -247,6 +248,8 @@ def check_auto_trade_signals():
     avail_usdt = get_usdt_balance_num()
     max_allocation_per_coin = round(avail_usdt * 0.25, 2)
     trade_amount = max(min(max_allocation_per_coin, 25.0), 5.0)
+    try: usdt_try = float(crypto_cache["dolar"]["price"])
+    except: usdt_try = 48.5
 
     for coin in coins:
         rsi = crypto_cache[coin]["rsi"]
@@ -264,6 +267,7 @@ def check_auto_trade_signals():
                     last_trade_state[coin] = "BOUGHT"
                     partial_tp_done[coin] = False
                     buy_prices[coin] = curr_p
+                    trade_amounts[coin] = trade_amount
                     max_prices_during_trade[coin] = curr_p
                     daily_stats["total_trades"] += 1
                     send_telegram(
@@ -281,6 +285,13 @@ def check_auto_trade_signals():
         elif last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
             entry_p = buy_prices[coin]
             pnl_pct = (curr_p - entry_p) / entry_p
+            
+            # TL VE USDT CİNSİNDEN KÂR/ZARAR HESABI
+            invested_usdt = trade_amounts.get(coin, 6.0)
+            profit_usdt = invested_usdt * pnl_pct
+            profit_tl = profit_usdt * usdt_try
+            tl_str = f"+{profit_tl:.2f} TL" if profit_tl >= 0 else f"{profit_tl:.2f} TL"
+
             if curr_p > max_prices_during_trade[coin]:
                 max_prices_during_trade[coin] = curr_p
             max_p = max_prices_during_trade[coin]
@@ -290,26 +301,77 @@ def check_auto_trade_signals():
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(f"🛑 *[STOP-LOSS]* `{coin.upper()}` net sonuç: `%{pnl_pct*100:.2f}`", disable_notification=False)
+                send_telegram(
+                    f"🛡️ *[ZARAR ETMEMEK İÇİN SATILDI (STOP-LOSS)]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"📉 **Yüzdesel Sonuç:** `%{pnl_pct*100:.2f}`\n"
+                    f"💸 **Net Zarar:** `{tl_str}`\n"
+                    f"💬 **Açıklama:** Fiyat %2 altına düştü, daha büyük zararı önlemek için robot otomatik sattı!\n"
+                    f"━━━━━━━━━━━━━━━━━━━",
+                    disable_notification=False
+                )
+
+            elif rsi >= 70:
+                execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
+                last_trade_state[coin] = "NEUTRAL"
+                if pnl_pct > 0: daily_stats["successful_trades"] += 1
+                daily_stats["total_profit_pct"] += pnl_pct
+                send_telegram(
+                    f"🔴 *[RSI TAVAN SEVİYESİNE ULAŞTI - SATIŞ YAPILDI]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"📊 **RSI Seviyesi:** `{rsi}`\n"
+                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
+                    f"💰 **Net Kazanılan Kâr:** `{tl_str}`\n"
+                    f"💬 **Açıklama:** RSI aşırı alım bölgesine çıktığı için kârı korumak amacıyla satıldı!\n"
+                    f"━━━━━━━━━━━━━━━━━━━",
+                    disable_notification=False
+                )
 
             elif pnl_pct >= TAKE_PROFIT_PCT and not partial_tp_done[coin]:
                 execute_okx_order(inst_id, "sell", sz="50%", sz_type="base_ccy")
                 partial_tp_done[coin] = True
                 daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(f"🎯 *[KÂR AL]* `{coin.upper()}` kilitlenen kâr: `+%{pnl_pct*100:.2f}`", disable_notification=False)
+                send_telegram(
+                    f"🎯 *[YETERLİ KÂR ELDE EDİLDİ - KADEMELİ SATIŞ]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
+                    f"💰 **Net Kilitlenen Kâr:** `{tl_str}`\n"
+                    f"💬 **Açıklama:** Hedef %4 kâr seviyesine ulaşıldı, kârın yarısı cebinize kilitlendi!\n"
+                    f"━━━━━━━━━━━━━━━━━━━",
+                    disable_notification=False
+                )
 
             elif (max_p - entry_p) / entry_p >= TRAILING_TRIGGER and drop_from_peak >= TRAILING_STOP:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(f"🏆 *[ZİRVE SATIŞI]* `{coin.upper()}` toplam kâr: `+%{pnl_pct*100:.2f}`", disable_notification=False)
+                send_telegram(
+                    f"🏆 *[ZİRVEDEN DÖNÜŞ SATIŞI (TRAILING STOP)]*\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 **Coin:** `{coin.upper()}`\n"
+                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
+                    f"📈 **Yüzdesel Kâr:** `+%{pnl_pct*100:.2f}`\n"
+                    f"💰 **Net Toplam Kâr:** `{tl_str}`\n"
+                    f"💬 **Açıklama:** Fiyat zirveyi görüp geri çekilince kârı kaçırmamak için robot satışı yaptı!\n"
+                    f"━━━━━━━━━━━━━━━━━━━",
+                    disable_notification=False
+                )
 
 def generate_analiz_report():
     fetch_live_data()
     msg = "📡 *APEX MUM ÇİZGİSİ VE DESTEK ANALİZİ*\n\n"
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
+    try: usdt_try = float(crypto_cache["dolar"]["price"])
+    except: usdt_try = 48.5
+
     for coin in coins:
         p_str = crypto_cache[coin]['price']
         rsi_v = crypto_cache[coin]['rsi']
@@ -322,9 +384,14 @@ def generate_analiz_report():
         
         if last_trade_state[coin] == "BOUGHT" and buy_prices[coin] > 0:
             entry = buy_prices[coin]
-            pnl = ((p_num - entry) / entry) * 100
-            pnl_str = f"+%{pnl:.2f}" if pnl >= 0 else f"%{pnl:.2f}"
-            msg += f" ├ 🛍️ **Alış Maliyetin:** `{entry:,.2f}` $ *(Anlık: `{pnl_str}`)*\n"
+            pnl_pct = ((p_num - entry) / entry)
+            invested_usdt = trade_amounts.get(coin, 6.0)
+            profit_tl = invested_usdt * pnl_pct * usdt_try
+            
+            pnl_pct_str = f"+%{pnl_pct*100:.2f}" if pnl_pct >= 0 else f"%{pnl_pct*100:.2f}"
+            tl_str = f"+{profit_tl:.2f} TL" if profit_tl >= 0 else f"{profit_tl:.2f} TL"
+            
+            msg += f" ├ 🛍️ **Alış Maliyetin:** `{entry:,.2f}` $ *(Anlık K/Z: `{pnl_pct_str}` | `{tl_str}`)*\n"
         else:
             msg += " ├ 🛍️ **Alış Maliyetin:** `Elde Yok (Nakit)`\n"
             
@@ -342,7 +409,7 @@ def handle_message(raw_text, chat_id):
 
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
-        send_telegram("🚀 *APEX BOT AKTİF (MUM ÇİZGİSİ & DESTEK TAKİP MODU)*", chat_id)
+        send_telegram("🚀 *APEX BOT AKTİF (NET TL KÂR HESAPLAMA MODU)*", chat_id)
     elif text in ["/stop", "stop"]:
         AUTO_TRADE_ENABLED = False
         send_telegram("🛑 *OTOMATİK MOTOR DURDURULDU!*", chat_id)

@@ -4,14 +4,16 @@ from config import TELEGRAM_TOKEN, CHAT_ID, TRADE_HISTORY, ACTIVE_POSITIONS
 from market import get_live_market_data
 
 def set_telegram_commands():
-    """Bot menü butonlarını Telegram'a yükler"""
+    """Bot menü butonlarını emojili olarak Telegram'a yükler"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "cuzdan", "description": "💰 OKX TR Cüzdan Bakiye Durumu"},
         {"command": "analiz", "description": "📈 5m & 15m Piyasa Analiz Raporu"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
-        {"command": "gecmis", "description": "📜 Detaylı İşlem Dökümü"}
+        {"command": "gecmis", "description": "📜 Detaylı İşlem Dökümü"},
+        {"command": "stop", "description": "🛑 Oto Motoru Durdur"},
+        {"command": "baslat", "description": "▶️ Oto Motoru Çalıştır"}
     ]
     payload = {"commands": commands}
     data = json.dumps(payload).encode('utf-8')
@@ -45,7 +47,9 @@ def handle_message(raw_text, chat_id):
             "🔹 `/analiz` - Dip ve RSI analiz raporu\n"
             "🔹 `/rapor` - Aktif pozisyonlar ve durum\n"
             "🔹 `/kur` - Canlı piyasa kurları\n"
-            "🔹 `/gecmis` - Geçmiş kâr dökümü",
+            "🔹 `/gecmis` - Geçmiş kâr dökümü\n"
+            "🔹 `/baslat` - Oto Motoru Çalıştır\n"
+            "🔹 `/stop` - Oto Motoru Durdur",
             chat_id
         )
     elif text == "/cuzdan":

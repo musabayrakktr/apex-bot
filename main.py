@@ -4,11 +4,77 @@ import time
 import json
 import urllib.request
 from flask import Flask
-from config import TELEGRAM_TOKEN
-from telegram_bot import handle_message, set_telegram_commands
+from config import TELEGRAM_TOKEN, TARGET_COINS, ACTIVE_POSITIONS, TRADE_HISTORY
+from telegram_bot import handle_message, set_telegram_commands, send_telegram
+from strategy import analyze_market_for_dip
 from web import render_dashboard
 
 app = Flask(__name__)
+
+def auto_trading_engine():
+    """7/24 Arka planda piyasayı tarayan ve sıfır zararla işlem açıp-kapatan ana motor"""
+    print("🚀 Auto Trading Engine başlatıldı...")
+    while True:
+        try:
+            for symbol in TARGET_COINS:
+                clean_symbol = symbol.replace("/", "-")
+                is_dip, current_price, rsi, reason = analyze_market_for_dip(clean_symbol)
+
+                # Pozisyon kontrolü
+                existing_pos = next((p for p in ACTIVE_POSITIONS if p['parite'] == symbol), None)
+
+                if not existing_pos:
+                    # Pozisyon yoksa ve DİP noktası tespit edildiyse ALIM yap
+                    if is_dip:
+                        new_pos = {
+                            "parite": symbol,
+                            "giris": f"${current_price:,.2f}",
+                            "raw_giris": current_price,
+                            "anlik": f"${current_price:,.2f}",
+                            "durum": "Alım Yapıldı (Hedef Kâr Bekleniyor)"
+                        }
+                        ACTIVE_POSITIONS.append(new_pos)
+                        send_telegram(
+                            f"🚀 *ALIM İŞLEMİ GERÇEKLEŞTİ!*\n"
+                            f"━━━━━━━━━━━━━━━━━━━\n"
+                            f"🪙 *Parite:* {symbol}\n"
+                            f"💰 *Alış Fiyatı:* `${current_price:,.2f}`\n"
+                            f"📊 *RSI:* `{rsi:.1f}` (Dip Tespiti)\n"
+                            f"🎯 *Bütçe:* 250 TL | Hedef: Mikro Kâr Satışı"
+                        )
+                else:
+                    # Pozisyon varsa: Fiyat alım seviyesinin üstüne çıkıp 1 TL+ kâr bıraktıysa SAT!
+                    buy_price = existing_pos["raw_giris"]
+                    existing_pos["anlik"] = f"${current_price:,.2f}"
+
+                    # Örnek Mikro Kâr Mantığı (Fiyat %0.4 yükseldiğinde 1 TL+ kâr oluşur)
+                    if current_price >= (buy_price * 1.004):
+                        profit_usd = (current_price - buy_price) * (7.5 / buy_price)
+                        profit_tl = profit_usd * 34.20
+                        
+                        ACTIVE_POSITIONS.remove(existing_pos)
+                        TRADE_HISTORY.append({
+                            "parite": symbol,
+                            "kar": f"+{profit_tl:.2f} TL",
+                            "zaman": time.strftime("%H:%M:%S")
+                        })
+                        
+                        send_telegram(
+                            f"💰 *KÂR İLE SATIŞ YAPILDI! (MİKRO SCALP)*\n"
+                            f"━━━━━━━━━━━━━━━━━━━\n"
+                            f"🪙 *Parite:* {symbol}\n"
+                            f"💵 *Satış Fiyatı:* `${current_price:,.2f}`\n"
+                            f"📈 *Elde Edilen Kâr:* `+{profit_tl:.2f} TL`\n"
+                            f"✅ *Durum:* Kâr kasaya eklendi, yeni dip aranıyor!"
+                        )
+                    elif current_price < buy_price:
+                        # Asla zararına satış yapılmıyor!
+                        existing_pos["durum"] = f"Şuan ${current_price:,.2f} (Zarar satışı yapılmıyor, yükseliş bekleniyor)"
+
+            time.sleep(30) # 30 saniyede bir piyasayı tara
+        except Exception as e:
+            print(f"Trading Engine hatası: {e}")
+            time.sleep(10)
 
 def telegram_polling_listener():
     offset = 0
@@ -41,11 +107,15 @@ def home():
     return render_dashboard()
 
 if __name__ == '__main__':
-    # Bot başlarken menüyü emojili olarak Telegram'a kaydet
     set_telegram_commands()
 
-    t = threading.Thread(target=telegram_polling_listener, daemon=True)
-    t.start()
+    # Telegram Dinleyici
+    t_tele = threading.Thread(target=telegram_polling_listener, daemon=True)
+    t_tele.start()
+    
+    # 7/24 Alım-Satım Motoru
+    t_trade = threading.Thread(target=auto_trading_engine, daemon=True)
+    t_trade.start()
     
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)

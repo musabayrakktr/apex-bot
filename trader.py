@@ -11,7 +11,7 @@ def generate_signature(timestamp, method, request_path, body=""):
     return base64.b64encode(mac.digest()).decode('utf-8')
 
 def get_ticker_price_in_usdt(ccy, base_url):
-    """Herhangi bir coin'in anlık USDT cinsinden değerini çeker."""
+    """Borsadaki her coin'in anlık USDT karşılığını hesaplar."""
     if ccy == "USDT":
         return 1.0
     try:
@@ -27,8 +27,8 @@ def get_ticker_price_in_usdt(ccy, base_url):
 
 def get_account_balance():
     """
-    OKX hesabındaki TÜM varlıkları (USDT, TRY, BTC, ETH ve diğer tüm coinleri) 
-    taramadan geçirir, anlık piyasa fiyatlarıyla toplam USDT değerini hesaplar.
+    OKX cüzdanındaki TÜM coin/nakit varlıklarını sorgular, 
+    anlık canlı kurlarla toplam USDT değerini döndürür.
     """
     if not (OKX_API_KEY and OKX_SECRET_KEY):
         return 27.78
@@ -67,12 +67,10 @@ def get_account_balance():
                         if ccy == "USDT":
                             total_usdt_value += eq
                         elif ccy == "TRY":
-                            # TL bakiyesini USDT'ye dönüştürür
                             usdt_try = get_ticker_price_in_usdt("USDT-TRY", base_url)
                             price = usdt_try if usdt_try > 0 else 34.20
                             total_usdt_value += (eq / price)
                         else:
-                            # BTC, ETH, SOL vb. tüm coinlerin anlık fiyatını USDT'ye çevirip ekler
                             coin_price = get_ticker_price_in_usdt(ccy, base_url)
                             total_usdt_value += (eq * coin_price)
                     

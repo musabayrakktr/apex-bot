@@ -8,7 +8,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "🚀 Botu Başlat & Ana Menü"},
-        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık & Otomatik Bütçe"},
+        {"command": "cuzdan", "description": "💰 OKX Canlı Toplam Varlık & Bütçe"},
         {"command": "analiz", "description": "📈 Piyasa Dip & RSI Analizi"},
         {"command": "rapor", "description": "📊 Pozisyonlar ve Kâr Durumu"},
         {"command": "kur", "description": "💱 Canlı Dolar, Altın ve BTC Kurları"},
@@ -24,15 +24,48 @@ def set_telegram_commands():
     except Exception as e:
         print(f"Menü hatası: {e}")
 
-def send_telegram(message, chat_id=CHAT_ID):
+def send_telegram(message, chat_id=CHAT_ID, urgent=False):
+    """
+    urgent=True yapıldığında Telegram bildirimi yüksek sesli/sessiz moda girmeden atılır.
+    """
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": chat_id, 
+        "text": message, 
+        "parse_mode": "Markdown",
+        "disable_notification": False if urgent else False
+    }
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
         print(f"Telegram mesaj hatası: {e}")
+
+def send_trade_alert(action, parite, miktar, fiyat, kar_tl=0.0):
+    """Alım ve satım anlarında telefon için yüksek sesli uyarı mesajı fırlatır."""
+    if action == "ALIM":
+        msg = (
+            f"🚨🚨 *ALIM İŞLEMİ GERÇEKLEŞTİ!* 🚨🚨\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🪙 *Parite:* `{parite}`\n"
+            f"💰 *Giriş Fiyatı:* `{fiyat}`\n"
+            f"🛡️ *İşlem Tutarı:* `{miktar} USDT`\n"
+            f"⏰ *Zaman:* Anlık Canlı Emirden\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 *Pozisyon takibe alındı.*"
+        )
+    else:
+        msg = (
+            f"🔔🔔 *SATIM İŞLEMİ (KÂR ALINDI)!* 🔔🔔\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"🪙 *Parite:* `{parite}`\n"
+            f"💵 *Çıkış Fiyatı:* `{fiyat}`\n"
+            f"📈 *Elde Edilen Kâr:* `{kar_tl:.2f} USDT`\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 *Bakiye cüzdana eklendi.*"
+        )
+    send_telegram(msg, urgent=True)
 
 def handle_message(raw_text, chat_id):
     text = raw_text.lower().strip()
@@ -57,11 +90,8 @@ def handle_message(raw_text, chat_id):
         try_rate = bakiye_data["try_rate"]
         toplam_try = toplam_usdt * try_rate
         
-        # Hedef coin sayısına bakiyeyi eşit bölüştürme (Dinamik Hesaplama)
         hedef_coin_sayisi = len(TARGET_COINS) if TARGET_COINS else 5
         coin_butce_usdt = round(toplam_usdt / hedef_coin_sayisi, 2)
-        
-        # Borsa min emir koruması (minimum 5 USDT)
         if coin_butce_usdt < 5.0:
             coin_butce_usdt = 5.0
             
@@ -119,4 +149,3 @@ def handle_message(raw_text, chat_id):
             for t in TRADE_HISTORY:
                 gecmis_metni += f"🔹 *{t['parite']}* | Kâr: *{t['kar']}*\n   🕒 _{t['zaman']}_\n\n"
             send_telegram(gecmis_metni, chat_id)
-            

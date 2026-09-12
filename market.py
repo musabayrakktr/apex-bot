@@ -8,3 +8,4 @@ def get_live_market_data():
         "rsi": "48.5",
         "trend": "Yatay Akümülasyon"
     }
+    

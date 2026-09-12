@@ -1,19 +1,21 @@
 import os
 
-TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
-CHAT_ID = "8982017587"
+# Telegram Konfigürasyonu
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7832675952:AAESn65y2K7iXkH_GqTjB0aO9vX_7m0_8v4")
+CHAT_ID = os.environ.get("CHAT_ID", "6096537380")
 
+# OKX API Konfigürasyonu (Gerçek Alım-Satım İçin)
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
+IS_SIMULATION = True  # API anahtarları girilene kadar güvenli simülasyon modunda çalışır
 
-# Şuan aktif olan pozisyonlar
-ACTIVE_POSITIONS = [
-    {"parite": "ETH/USDT", "yon": "LONG 🟢", "giris": "$2,450.00", "kar_zarar": "+%2.40"},
-    {"parite": "SOL/USDT", "yon": "LONG 🟢", "giris": "$142.50", "kar_zarar": "+%0.85"}
-]
+# Bütçe ve Strateji Parametreleri
+COIN_BUDGET_TL = 250.0  # Coin başına ayrılan minimum bütçe (TL)
+MIN_PROFIT_TL = 1.0     # İşlem başına hedeflenen minimum net kâr (TL)
+TARGET_COINS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
 
-# Geçmiş işlem hafızası
-TRADE_HISTORY = [
-    {"parite": "BTC/USDT", "islem": "KÂR 🟢", "tutar": "+1.25 USDT", "oran": "%1.2", "zaman": "12.09.2026 - 14:10"},
-]
+# Hafıza Verileri (Aktif Pozisyonlar ve Geçmiş)
+ACTIVE_POSITIONS = []
+TRADE_HISTORY = []
+COIN_PERFORMANCE = {coin: {"trades": 0, "profit": 0.0} for coin in TARGET_COINS}

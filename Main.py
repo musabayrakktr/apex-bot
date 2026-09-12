@@ -20,9 +20,9 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 AUTO_TRADE_ENABLED = True
 
-# --- 1000 TL ➔ 1500 TL HEDEFİ İÇİN OPTİMİZE RİSK/KÂR ORANLARI ---
-STOP_LOSS_PCT = 0.02      # Küçük kasayı korumak için %2 risk sınırı
-TAKE_PROFIT_PCT = 0.04    # 1000 TL'yi büyütmek için %4 ideal kâr hedefi
+# --- RİSK VE SEPET YÖNETİMİ ---
+STOP_LOSS_PCT = 0.02      # %2 Stop-Loss
+TAKE_PROFIT_PCT = 0.04    # %4 Kâr Al
 TRAILING_TRIGGER = 0.02   
 TRAILING_STOP = 0.01      
 
@@ -235,36 +235,38 @@ def check_auto_trade_signals():
         return
     
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
+    
+    # KASAYI BÖLÜŞTÜRME (SEPET MANTIĞI): Toplam kullanılabilir bakiyenin en fazla %25'i ile tek işlem açılır.
+    # Böylece para tek bir coine gömülmez, farklı coinlere paylaştırılır.
+    avail_usdt = get_usdt_balance_num()
+    max_allocation_per_coin = round(avail_usdt * 0.25, 2)
+    trade_amount = max(min(max_allocation_per_coin, 25.0), 5.0)
+
     for coin in coins:
         rsi = crypto_cache[coin]["rsi"]
         curr_p = crypto_cache[coin]["price_num"]
         bb_l = crypto_cache[coin]["bb_lower"]
         inst_id = crypto_cache[coin]["inst_id"]
 
-        # 1000 TL Kasa için optimize edilmiş esnek alım koşulu
         is_strong_dip = (rsi <= 45) or (rsi <= 50 and bb_l > 0 and curr_p <= bb_l * 1.01)
 
         if is_strong_dip and last_trade_state[coin] != "BOUGHT":
-            avail_usdt = get_usdt_balance_num()
-            trade_amount = round(min(avail_usdt, 30.0), 2) # Küçük kasa için bütçe optimize edildi
-            if trade_amount >= 5.0:
+            if avail_usdt >= trade_amount and trade_amount >= 5.0:
                 success, msg = execute_okx_order(inst_id, "buy", sz=trade_amount, sz_type="quote_ccy")
                 if success:
                     last_trade_state[coin] = "BOUGHT"
                     partial_tp_done[coin] = False
                     buy_prices[coin] = curr_p
                     max_prices_during_trade[coin] = curr_p
-                    daily_stats["total_trades"] += 1  # İŞLEM SAYACINI ANINDA ARTIYORUZ Kİ RAPORDA GÖZÜKSÜN!
+                    daily_stats["total_trades"] += 1
                     send_telegram(
-                        f"🚨 *[İŞLEM BİLDİRİMİ: ALIM YAPILDI (1000 TL HEDEF MOD)]*\n"
+                        f"🚨 *[SEPET BÖLÜŞTÜRME ALIMI]*\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"🪙 **Coin:** `{coin.upper()}`\n"
                         f"💵 **Alış Fiyatı:** `{curr_p:,.2f}` $\n"
-                        f"💰 **Kullanılan Tutar:** `{trade_amount}` USDT\n"
-                        f"📊 **Sinyal:** RSI `{rsi}` + Bollinger Desteği\n"
-                        f"🛡️ **Stop-Loss:** `%{STOP_LOSS_PCT*100:.1f}` | 🎯 **Hedef Kâr:** `%{TAKE_PROFIT_PCT*100:.1f}`\n"
-                        f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"⚡ *Pozisyon Otomatik Takibe Alındı!*",
+                        f"💰 **Ayrılan Tutar (Sepet Payı):** `{trade_amount}` USDT\n"
+                        f"📊 **Sinyal:** RSI `{rsi}`\n"
+                        f"━━━━━━━━━━━━━━━━━━━",
                         disable_notification=False
                     )
 
@@ -280,46 +282,21 @@ def check_auto_trade_signals():
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(
-                    f"🛑 *[İŞLEM BİLDİRİMİ: STOP-LOSS]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💵 **Satış Fiyatı:** `{curr_p:,.2f}` $\n"
-                    f"📉 **Net Sonuç:** `%{pnl_pct*100:.2f}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🛡️ *Sermaye Koruma Modu Çalıştırıldı.*",
-                    disable_notification=False
-                )
+                send_telegram(f"🛑 *[STOP-LOSS]* `{coin.upper()}` net sonuç: `%{pnl_pct*100:.2f}`", disable_notification=False)
 
             elif pnl_pct >= TAKE_PROFIT_PCT and not partial_tp_done[coin]:
                 execute_okx_order(inst_id, "sell", sz="50%", sz_type="base_ccy")
                 partial_tp_done[coin] = True
                 daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(
-                    f"🎯 *[İŞLEM BİLDİRİMİ: KADEMELİ KÂR AL]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"🚀 **Kilitlenen Kâr:** `+%{pnl_pct*100:.2f}` (%50 Satış)\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🛡️ *Kalan %50 Pozisyon İzleyen Stop Moduna Geçirildi!*",
-                    disable_notification=False
-                )
+                send_telegram(f"🎯 *[KÂR AL]* `{coin.upper()}` kilitlenen kâr: `+%{pnl_pct*100:.2f}`", disable_notification=False)
 
             elif (max_p - entry_p) / entry_p >= TRAILING_TRIGGER and drop_from_peak >= TRAILING_STOP:
                 execute_okx_order(inst_id, "sell", sz="100%", sz_type="base_ccy")
                 last_trade_state[coin] = "NEUTRAL"
                 if pnl_pct > 0: daily_stats["successful_trades"] += 1
                 daily_stats["total_profit_pct"] += pnl_pct
-                send_telegram(
-                    f"🏆 *[İŞLEM BİLDİRİMİ: ZİRVE SATIŞI]*\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"🪙 **Coin:** `{coin.upper()}`\n"
-                    f"💰 **Toplam Kâr:** `+%{pnl_pct*100:.2f}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━\n"
-                    f"⚡ *İzleyen Stop Zirveden Satış Yaptı!*",
-                    disable_notification=False
-                )
+                send_telegram(f"🏆 *[ZİRVE SATIŞI]* `{coin.upper()}` toplam kâr: `+%{pnl_pct*100:.2f}`", disable_notification=False)
 
 def check_instant_movement():
     global last_alert_prices
@@ -334,10 +311,10 @@ def check_instant_movement():
             change_pct = ((curr_p - prev_p) / prev_p) * 100
             if change_pct >= 1.5:
                 last_alert_prices[coin_id] = curr_p
-                send_telegram(f"🚀 *SATIŞ / KÂR AL SİNYALİ! ({coin_id.upper()})*\n\n📈 *Fiyat Sıçraması:* `{curr_p:,.2f}` $\n⚡ *Değişim:* `+{change_pct:.2f}%`", disable_notification=False)
+                send_telegram(f"🚀 *SATIŞ / KÂR AL SİNYALİ! ({coin_id.upper()})* -> `+{change_pct:.2f}%`", disable_notification=False)
             elif change_pct <= -1.5:
                 last_alert_prices[coin_id] = curr_p
-                send_telegram(f"🛡️ *SERMAYE KORUMA / DIP ALARMI! ({coin_id.upper()})*\n\n📉 *Fiyat Düşüşü:* `{curr_p:,.2f}` $\n⚡ *Değişim:* `{change_pct:.2f}%`", disable_notification=False)
+                send_telegram(f"🛡️ *DIP ALARMI! ({coin_id.upper()})* -> `{change_pct:.2f}%`", disable_notification=False)
 
 def check_custom_price_alerts():
     global custom_target_alerts
@@ -346,19 +323,14 @@ def check_custom_price_alerts():
         if curr_p == 0.0: continue
         for target_p in list(targets):
             if curr_p >= target_p:
-                send_telegram(
-                    f"🎯 *HEDEF FİYAT ALARMI TETİKLENDİ! ({coin_id.upper()})*\n\n"
-                    f"🚀 *Anlık Fiyat:* `{curr_p:,.2f}` $\n"
-                    f"📌 *Kurulan Hedef:* `{target_p:,.2f}` $",
-                    disable_notification=False
-                )
+                send_telegram(f"🎯 *HEDEF FİYAT ALARMI! ({coin_id.upper()})* -> `{curr_p:,.2f} $`", disable_notification=False)
                 targets.remove(target_p)
         if not targets:
             del custom_target_alerts[coin_id]
 
 def get_okx_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return "⚠️ OKX API anahtarları eksik! Render ayarlarını kontrol edin."
+        return "⚠️ OKX API anahtarları eksik!"
     request_path = "/api/v5/account/balance"
     timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
     message = timestamp + "GET" + request_path
@@ -376,7 +348,7 @@ def get_okx_balance():
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
-                if not details: return "💼 *OKX Cüzdanınızda kullanılabilir bakiye bulunamadı.*"
+                if not details: return "💼 *Cüzdan boş.*"
                 msg = "💼 *OKX TR CÜZDAN BAKİYESİ*\n\n"
                 for coin in details:
                     if float(coin.get("eq", "0")) > 0:
@@ -385,11 +357,11 @@ def get_okx_balance():
             else:
                 return f"❌ OKX Hatası: {res.get('msg', 'Bilinmeyen hata')}"
     except Exception as e:
-        return f"❌ OKX Bağlantı Hatası: {e}"
+        return f"❌ Bağlantı Hatası: {e}"
 
 def generate_analiz_report():
     fetch_live_data()
-    msg = "📡 *APEX MULTI-HARVESTER CANLI ANALİZ*\n\n"
+    msg = "📡 *APEX SEPET ANALİZİ*\n\n"
     coins = [k for k in crypto_cache if k not in ["dolar", "gram_altin", "ceyrek_altin"]]
     for coin in coins:
         p_str = crypto_cache[coin]['price']
@@ -398,15 +370,7 @@ def generate_analiz_report():
         p_num = crypto_cache[coin]['price_num']
         signal = calculate_precision_signal(rsi_v, p_num, bb_l)
         msg += f"🪙 **{coin.upper()[:3]}:** `{p_str}` $ | RSI: `{rsi_v}` -> *{signal}*\n"
-    
-    msg += f"\n💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL\n\n"
-    
-    elapsed = time.time() - last_report_time
-    remaining_sec = max(0, int(REPORT_INTERVAL - elapsed))
-    rem_min = remaining_sec // 60
-    rem_sec = remaining_sec % 60
-    
-    msg += f"⏳ *Sonraki Otomatik Rapor:* `{rem_min} dk {rem_sec} sn` kaldı"
+    msg += f"\n💵 **USD/TL:** `{crypto_cache['dolar']['price']}` TL"
     return msg
 
 def handle_message(raw_text, chat_id):
@@ -416,84 +380,32 @@ def handle_message(raw_text, chat_id):
 
     if text in ["/start", "start", "/help"]:
         set_telegram_commands()
-        start_msg = (
-            "🚀 *APEX MULTI-HARVESTER DEVREDE (1000 TL ➔ 1500 TL HEDEF MOD)*\n\n"
-            "Hoş geldin patron! 1000 TL kasa yönetimi, optimize edilmiş esnek RSI süzgeci ve kademeli kâr alma motoru aktif.\n\n"
-            "📌 Menüden komutlara erişebilirsin."
-        )
-        send_telegram(start_msg, chat_id)
-
-    elif text.startswith("/alarm "):
-        parts = raw_text.split()
-        if len(parts) == 3:
-            coin_key = parts[1].lower()
-            try:
-                target_price = float(parts[2])
-                if coin_key not in custom_target_alerts:
-                    custom_target_alerts[coin_key] = []
-                custom_target_alerts[coin_key].append(target_price)
-                send_telegram(f"✅ *Hedef Alarmı Kuruldu! ({coin_key.upper()} - {target_price:,.2f} $)*", chat_id)
-            except ValueError:
-                send_telegram("⚠️ Geçersiz format. Örn: `/alarm btc 80000`", chat_id)
-
-    elif text in ["/alarmlar", "alarmlar"]:
-        if not custom_target_alerts:
-            send_telegram("🔔 *Kurulu aktif hedef alarmınız yok.*", chat_id)
-        else:
-            msg = "🔔 *AKTİF HEDEF ALARMLARI*\n\n"
-            for c_id, t_list in custom_target_alerts.items():
-                msg += f"🪙 *{c_id.upper()}*: {', '.join([f'`{p:,.2f} $`' for p in t_list])}\n"
-            send_telegram(msg, chat_id)
-
-    elif text.startswith("/alarmsil"):
-        parts = raw_text.split()
-        if len(parts) == 2:
-            coin_key = parts[1].lower()
-            if coin_key in custom_target_alerts:
-                del custom_target_alerts[coin_key]
-                send_telegram(f"🗑️ *{coin_key.upper()} alarmları temizlendi.*", chat_id)
-
+        send_telegram("🚀 *APEX BOT AKTİF (AKILLI SEPET & BÖLÜŞTÜRME MODU)*", chat_id)
     elif text in ["/stop", "stop"]:
         AUTO_TRADE_ENABLED = False
-        send_telegram("🛑 *OTOMATİK EMİR MOTORU DURDURULDU!*", chat_id)
-
+        send_telegram("🛑 *OTOMATİK MOTOR DURDURULDU!*", chat_id)
     elif text in ["/baslat", "baslat"]:
         AUTO_TRADE_ENABLED = True
-        send_telegram("▶️ *OTOMATİK EMİR MOTORU BAŞLATILDI!*", chat_id)
-
+        send_telegram("▶️ *OTOMATİK MOTOR ÇALIŞTIRILDI!*", chat_id)
     elif text in ["/cuzdan", "cuzdan", "/bakiye"]:
-        send_telegram("⏳ OKX TR Cüzdan bakiyesi çekiliyor...", chat_id)
         send_telegram(get_okx_balance(), chat_id)
-
     elif text in ["/analiz", "analiz"]:
         send_telegram(generate_analiz_report(), chat_id)
-
     elif text in ["/rapor", "rapor"]:
         rapor_msg = (
-            "📊 *APEX PERFORMANS RAPORU (1000 TL HEDEF)*\n\n"
+            "📊 *APEX PERFORMANS RAPORU*\n\n"
             f"🔄 **Toplam İşlem:** `{daily_stats['total_trades']}`\n"
             f"✅ **Başarılı İşlem:** `{daily_stats['successful_trades']}`\n"
-            f"📈 **Toplam Oransal Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`\n\n"
-            f"🤖 *Otomatik Motor:* {'🟢 Aktif' if AUTO_TRADE_ENABLED else '🔴 Durduruldu'}"
+            f"📈 **Toplam Kâr:** `%{daily_stats['total_profit_pct']*100:.2f}`\n"
+            f"🤖 *Motor:* {'🟢 Aktif' if AUTO_TRADE_ENABLED else '🔴 Durduruldu'}"
         )
         send_telegram(rapor_msg, chat_id)
-
-    elif text in ["/dolar", "dolar"]:
-        send_telegram(f"💵 *Dolar*: `{crypto_cache['dolar']['price']}` TL", chat_id)
-    elif text in ["/gram", "gram"]:
-        send_telegram(f"🥇 *Gram Altın*: `{crypto_cache['gram_altin']['price']}` TL", chat_id)
-    elif text in ["/ceyrek", "çeyrek"]:
-        send_telegram(f"🥇 *Çeyrek Altın*: `{crypto_cache['ceyrek_altin']['price']}` TL", chat_id)
-    elif text in ["/test", "test"]:
-        send_telegram("✅ *1000 TL Hedef Modu Tamamen Aktif!*", chat_id)
 
 def telegram_polling_listener():
     offset = 0
     try:
         urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
-    except Exception as e:
-        print(f"Webhook silme hatası: {e}")
-
+    except: pass
     while True:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={offset}&timeout=20"
@@ -504,26 +416,16 @@ def telegram_polling_listener():
                     for update in data["result"]:
                         offset = update["update_id"] + 1
                         if "message" in update:
-                            chat_id = update["message"]["chat"]["id"]
-                            raw_text = update["message"].get("text", "").strip()
-                            if raw_text:
-                                handle_message(raw_text, chat_id)
-        except Exception as e:
-            time.sleep(3)
+                            handle_message(update["message"].get("text", "").strip(), update["message"]["chat"]["id"])
+        except: time.sleep(3)
 
 def background_scanner():
-    global last_report_time
     while True:
         try:
             fetch_live_data()
             check_auto_trade_signals()
             check_instant_movement()
             check_custom_price_alerts()
-
-            if time.time() - last_report_time >= REPORT_INTERVAL:
-                last_report_time = time.time()
-                send_telegram(generate_analiz_report(), disable_notification=False)
-
         except Exception as e:
             print(f"Tarama hatası: {e}")
         time.sleep(20)
@@ -540,37 +442,29 @@ DASHBOARD_PRO_HTML = """
         * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: #0b0e14; color: #e1e7ec; margin: 0; padding: 20px; }
         .container { max-width: 1300px; margin: 0 auto; }
-        
         .navbar { display: flex; justify-content: space-between; align-items: center; background: #151a23; padding: 15px 25px; border-radius: 12px; border: 1px solid #222936; margin-bottom: 20px; }
-        .logo { font-size: 20px; font-weight: 700; color: #00f2fe; display: flex; align-items: center; gap: 10px; }
+        .logo { font-size: 20px; font-weight: 700; color: #00f2fe; }
         .badge { padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 13px; }
         .badge-active { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid #00e676; }
         .badge-inactive { background: rgba(255, 23, 68, 0.15); color: #ff1744; border: 1px solid #ff1744; }
-        
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
         .metric-card { background: #151a23; border: 1px solid #222936; border-radius: 12px; padding: 20px; }
-        .m-title { font-size: 12px; color: #788b9b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
+        .m-title { font-size: 12px; color: #788b9b; text-transform: uppercase; font-weight: 600; }
         .m-val { font-size: 26px; font-weight: 700; margin-top: 8px; }
         .m-green { color: #00e676; }
         .m-blue { color: #00f2fe; }
-
         .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px; }
         @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
-
         .card-box { background: #151a23; border: 1px solid #222936; border-radius: 12px; padding: 20px; }
         .box-head { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #f0f4f8; display: flex; justify-content: space-between; align-items: center; }
-
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #1c2330; font-size: 14px; }
         th { color: #788b9b; font-weight: 600; font-size: 12px; text-transform: uppercase; }
-        
         .signal-pill { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-block; }
         .sig-dip { background: rgba(0, 230, 118, 0.2); color: #00e676; }
         .sig-neut { background: rgba(255, 255, 255, 0.08); color: #a0aec0; }
         .sig-sell { background: rgba(255, 23, 68, 0.2); color: #ff1744; }
-
         .tv-container { height: 400px; border-radius: 8px; overflow: hidden; }
-        
         .btn-select { background: #1c2330; border: 1px solid #2d3748; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
         .btn-select:hover { background: #00f2fe; color: #000; }
     </style>
@@ -586,7 +480,7 @@ DASHBOARD_PRO_HTML = """
         <div class="navbar">
             <div class="logo">⚡ APEX PRO TERMINAL</div>
             <div class="badge {{ 'badge-active' if auto_enabled else 'badge-inactive' }}">
-                {{ '🟢 BOT AKTİF (1000₺ HEDEF)' if auto_enabled else '🔴 BOT PAUSE' }}
+                {{ '🟢 BOT AKTİF (SEPET MODU)' if auto_enabled else '🔴 BOT PAUSE' }}
             </div>
         </div>
 
@@ -613,26 +507,17 @@ DASHBOARD_PRO_HTML = """
 
         <div class="main-grid">
             <div class="card-box">
-                <div class="box-head">
-                    <span>📈 TradingView Canlı Teknik Grafik (15m)</span>
-                </div>
+                <div class="box-head"><span>📈 TradingView Canlı Teknik Grafik (15m)</span></div>
                 <div class="tv-container">
                     <iframe id="tv_iframe" src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE:BTCUSDT&interval=15&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=151a23&studies=RSI%40tv-basicstudies%2CBollingerBands%40tv-basicstudies&theme=dark&style=1&timezone=exchange" width="100%" height="100%" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
                 </div>
             </div>
 
             <div class="card-box">
-                <div class="box-head">
-                    <span>🪙 Canlı Sinyal Paneli</span>
-                </div>
+                <div class="box-head"><span>🪙 Canlı Sinyal Paneli</span></div>
                 <table>
                     <thead>
-                        <tr>
-                            <th>Coin</th>
-                            <th>Fiyat</th>
-                            <th>RSI</th>
-                            <th>Grafik</th>
-                        </tr>
+                        <tr><th>Coin</th><th>Fiyat</th><th>RSI</th><th>Grafik</th></tr>
                     </thead>
                     <tbody>
                         {% for coin, data in coins.items() %}
@@ -640,9 +525,7 @@ DASHBOARD_PRO_HTML = """
                             <td><b>{{ coin.upper() }}</b></td>
                             <td>{{ data['price'] }} $</td>
                             <td><b>{{ data['rsi'] }}</b></td>
-                            <td>
-                                <button class="btn-select" onclick="changeChart('{{ data['tv_symbol'] }}')">İncele</button>
-                            </td>
+                            <td><button class="btn-select" onclick="changeChart('{{ data['tv_symbol'] }}')">İncele</button></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -657,13 +540,7 @@ DASHBOARD_PRO_HTML = """
             </div>
             <table>
                 <thead>
-                    <tr>
-                        <th>Coin ID</th>
-                        <th>Canlı Fiyat</th>
-                        <th>RSI Seviyesi</th>
-                        <th>Sinyal Analizi</th>
-                        <th>Cüzdan Pozisyonu</th>
-                    </tr>
+                    <tr><th>Coin ID</th><th>Canlı Fiyat</th><th>RSI Seviyesi</th><th>Sinyal Analizi</th><th>Cüzdan Pozisyonu</th></tr>
                 </thead>
                 <tbody>
                     {% for coin, data in coins.items() %}

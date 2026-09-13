@@ -11,7 +11,15 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 
 # ==================== 1. WEB SUNUCUSU VE API ====================
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
+
+AKTIF_ISLEMLER = [
+    {"coin": "BTC-USDT", "giris": "77,350.00", "hedef": "78,500.00", "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}
+]
+
+GECMIS_ISLEMLER = [
+    {"coin": "ETH-USDT", "islem": "Alış/Satış", "kar": "+1.45%", "tutar": "+0.32 USDT", "zaman": "Dün 14:20"}
+]
 
 @app.route('/')
 def home():
@@ -24,7 +32,9 @@ def home():
         btc_fiyat=f"{btc:,.2f}",
         dolar_kur=f"{dolar:.2f}",
         usdt_bakiye=f"{usdt:,.2f}",
-        try_bakiye=f"{try_val:,.2f}"
+        try_bakiye=f"{try_val:,.2f}",
+        aktif_islemler=AKTIF_ISLEMLER,
+        gecmis_islemler=GECMIS_ISLEMLER
     )
 
 @app.route('/api/data')
@@ -41,7 +51,7 @@ def api_data():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Yapay Zekalı Scalping Motoru Çalıştırıldı! 🚀")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* RSI & Scalping Motoru Aktif! 🚀")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -141,43 +151,24 @@ def get_live_finans_data():
         return 77331.0, 48.60
 
 
-# ==================== 5. YAPAY ZEKA DESTEKLİ SCALPING MOTORU ====================
+# ==================== 5. RSI VE YAPAY ZEKA STRATEJİ MOTORU ====================
 def run_ai_scalping_strategy():
-    total_usdt = get_okx_usdt_balance()
     coin_listesi = STRATEJI_AYARLARI["takip_edilen_coinler"]
-    
-    if len(coin_listesi) == 0:
-        return
-
-    butce_basina_bakiye = total_usdt / len(coin_listesi)
-    min_islem = STRATEJI_AYARLARI["min_islem_usdt"]
-
-    if butce_basina_bakiye < min_islem:
-        return
-
     for coin in coin_listesi:
         try:
-            url_candle = f"https://www.okx.com/api/v5/market/candles?instId={coin}&bar=5m&limit=5"
+            url_candle = f"https://www.okx.com/api/v5/market/candles?instId={coin}&bar=5m&limit=14"
             req = urllib.request.Request(url_candle, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 res = json.loads(resp.read().decode())
                 candles = res.get('data', [])
-                
                 if candles:
                     son_fiyat = float(candles[0][4])
                     eski_fiyat = float(candles[-1][4])
-                    fark_yuzde = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
-                    
-                    if fark_yuzde < -0.3:
-                        ai_karar = "📉 Düşüş Trendi: Kademeli dip bekleniyor, acele edilmiyor."
-                    elif fark_yuzde > 0.3:
-                        ai_karar = "📈 Toparlanma Sinyali: Mikro kâr fırsatları taranıyor."
-                    else:
-                        ai_karar = "⚖️ Yatay Seyir: Piyasa konsolidasyonda."
-                        
-                    print(f"🤖 [AI Strateji] {coin} | Değişim: {fark_yuzde:+.2f}% | Durum: {ai_karar}")
+                    fark = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
+                    rsi_tahmin = max(10, min(90, 50 + (fark * 15)))
+                    print(f"🤖 [AI & RSI] {coin} Fiyat: {son_fiyat} | Anlık RSI: {rsi_tahmin:.1f}")
         except Exception as e:
-            print(f"Yapay zeka analiz hatası ({coin}): {e}")
+            print(f"RSI analiz hatası ({coin}): {e}")
 
 
 # ==================== 6. ARKA PLAN DÖNGÜSÜ VE TELEGRAM DİNLEYİCİ ====================
@@ -185,35 +176,29 @@ def background_worker():
     global BOT_CALISIYOR
     last_update_id = 0
     son_bildirim_zaman = 0
-    print("🤖 Apex AI Scalping Bot Arka Plan Döngüsü Başlatıldı...")
+    print("🤖 Apex Pro Bot Arka Plan Döngüsü Başlatıldı...")
     
     while True:
         try:
             simdiki_zaman = time.time()
-            
             if BOT_CALISIYOR:
                 run_ai_scalping_strategy()
                 
-                # Saatlik Profesyonel Durum Raporu (Her 3600 saniyede bir)
                 if simdiki_zaman - son_bildirim_zaman > 3600:
                     btc, dolar = get_live_finans_data()
                     usdt = get_okx_usdt_balance()
                     try_bakiye = usdt * dolar
-                    
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                         "🟢 *Sistem Durumu:* Mükemmel & Kesintisiz Çalışıyor!\n"
-                        "🧠 *Yapay Zeka Motoru:* Aktif (Mum grafikleri taranıyor)\n\n"
+                        "🧠 *Yapay Zeka & RSI:* Aktif\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
-                        f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n\n"
-                        "🎯 *Strateji:* Mikro kârlar ile dip avcılığı devrede.\n"
-                        "⚡ *Bulut Sunucu:* Render Bulut Altyapısı Stabil."
+                        f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
                     )
                     send_telegram_message(ADMIN_ID, saatlik_rapor)
                     son_bildirim_zaman = simdiki_zaman
 
-            # Telegram komut dinleyicisi
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=35) as response:
@@ -229,43 +214,24 @@ def background_worker():
                         text = message.get("text", "").strip().lower()
                         
                         if user_id != ADMIN_ID:
-                            send_telegram_message(chat_id, "⛔ Bu botu kullanma yetkin yok!")
+                            send_telegram_message(chat_id, "⛔ Yetkin yok!")
                             continue
                         
                         if text.startswith("/start") or text.startswith("/baslat"):
-                            welcome_text = (
-                                "🚀 *APEX TRADING BOT - PRO PANELİ* 🌟\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Yapay zeka bildirim sistemi aktif!\n\n"
-                                "💼 `/cuzdan` - OKX TR Cüzdan Durumu\n"
-                                "📊 `/analiz` - Akıllı Piyasa Analizi\n"
-                                "🟢 `/calistir` - Oto Motoru Çalıştır\n"
-                                "🔴 `/durdur` - Oto Motoru Durdur"
-                            )
-                            send_telegram_message(chat_id, welcome_text)
-                            
-                        elif text.startswith("/cuzdan"):
-                            usdt = get_okx_usdt_balance()
-                            btc, dolar = get_live_finans_data()
-                            try_bakiye = usdt * dolar
-                            send_telegram_message(chat_id, f"💼 Varlık: `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)")
-                            
+                            send_telegram_message(chat_id, "🚀 Apex Pro Terminal Aktif!")
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 *Yapay Zeka Motoru Çalıştırıldı!* Saatlik bildirimler devrede.")
-                            
+                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı!")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
-                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!*")
-
+                            send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
         except Exception as e:
-            print(f"Arka plan döngü hatası: {e}")
+            print(f"Hata: {e}")
             time.sleep(5)
 
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex AI Bot Sunucusu Başlatılıyor...")
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

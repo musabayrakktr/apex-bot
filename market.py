@@ -8,6 +8,7 @@ from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 def get_okx_usdt_balance():
     """OKX TR hesabından canlı USDT bakiyesini çeker."""
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        print("⚠️ OKX API bilgileri eksik!")
         return 0.0
     try:
         endpoint = "/api/v5/account/balance?ccy=USDT"
@@ -31,14 +32,14 @@ def get_okx_usdt_balance():
         }
         res = requests.get(url, headers=headers, timeout=5).json()
         
-        # OKX'in bize ne döndüğünü loglarda görmek için bu şart:
+        # OKX'in bize ne döndüğünü loglarda görmek için:
         print("OKX'ten gelen ham yanıt:", res)
         
-        if res.get("code") == "0":
-            details = res['data'][0]['details']
+        if res.get("code") == "0" and res.get("data"):
+            details = res['data'][0].get('details', [])
             for d in details:
-                if d['ccy'] == 'USDT':
-                    return float(d['availBal'])
+                if d.get('ccy') == 'USDT':
+                    return float(d.get('availBal', 0.0))
         return 0.0
     except Exception as e:
         print(f"Bakiye çekme hatası: {e}")

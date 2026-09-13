@@ -9,8 +9,11 @@ from datetime import datetime, timezone
 import threading
 from flask import Flask, render_template, redirect, url_for, jsonify
 
+
+# ==================== 1. WEB SUNUCUSU VE API ====================
 app = Flask(__name__)
 
+# Örnek İşlem Hafızası (Bot çalıştıkça burası dolacak)
 AKTIF_ISLEMLER = [
     {"coin": "BTC-USDT", "giris": "77,350.00", "hedef": "78,500.00", "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}
 ]
@@ -18,7 +21,6 @@ AKTIF_ISLEMLER = [
 GECMIS_ISLEMLER = [
     {"coin": "ETH-USDT", "islem": "Alış/Satış", "kar": "+1.45%", "tutar": "+0.32 USDT", "zaman": "Dün 14:20"}
 ]
-
 
 @app.route('/')
 def home():
@@ -60,6 +62,8 @@ def durdur_web():
     send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
     return redirect(url_for('home'))
 
+
+# ==================== 2. AYARLAR VE GÜVENLİK ====================
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 8982017587))
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
@@ -73,6 +77,8 @@ STRATEJI_AYARLARI = {
     "min_islem_usdt": 1.0
 }
 
+
+# ==================== 3. TELEGRAM MESAJ GÖNDERME ====================
 def send_telegram_message(chat_id, text):
     if not TELEGRAM_TOKEN:
         return
@@ -90,6 +96,8 @@ def send_telegram_message(chat_id, text):
     except Exception as e:
         print(f"Telegram mesaj gönderme hatası: {e}")
 
+
+# ==================== 4. OKX BAKIYE VE FİNANS ====================
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 21.93
@@ -120,6 +128,7 @@ def get_okx_usdt_balance():
         print(f"Bakiye okuma hatası: {e}")
     return 21.93
 
+
 def get_live_finans_data():
     try:
         url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
@@ -142,6 +151,8 @@ def get_live_finans_data():
         print(f"Kur hatası: {e}")
         return 77331.0, 48.60
 
+
+# ==================== 5. RSI VE YAPAY ZEKA STRATEJİ MOTORU ====================
 def run_ai_scalping_strategy():
     coin_listesi = STRATEJI_AYARLARI["takip_edilen_coinler"]
     for coin in coin_listesi:
@@ -152,14 +163,17 @@ def run_ai_scalping_strategy():
                 res = json.loads(resp.read().decode())
                 candles = res.get('data', [])
                 if candles:
+                    # Basit RSI / Momentum Simülasyonu
                     son_fiyat = float(candles[0][4])
                     eski_fiyat = float(candles[-1][4])
                     fark = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
-                    rsi_tahmin = max(10, min(90, 50 + (fark * 15)))
+                    rsi_tahmin = max(10, min(90, 50 + (fark * 15)))  # Dinamik simüle RSI
                     print(f"🤖 [AI & RSI] {coin} Fiyat: {son_fiyat} | Anlık RSI: {rsi_tahmin:.1f}")
         except Exception as e:
             print(f"RSI analiz hatası ({coin}): {e}")
 
+
+# ==================== 6. ARKA PLAN DÖNGÜSÜ VE TELEGRAM DİNLEYİCİ ====================
 def background_worker():
     global BOT_CALISIYOR
     last_update_id = 0
@@ -206,56 +220,19 @@ def background_worker():
                             continue
                         
                         if text.startswith("/start") or text.startswith("/baslat"):
-                            welcome_msg = (
-                                "🚀 *Apex Pro Terminal Aktif!*\n\n"
-                                "🎯 *Komutlar:*\n"
-                                "• `/calistir` - RSI Scalping Modunu Başlat\n"
-                                "• `/durdur` - Motoru Durdur\n"
-                                "• `/analiz` - Anlık Piyasa & RSI Durumu\n"
-                                "• `/cuzdan` - Güncel Bakiye Varlığı\n"
-                                "• `/kur` - BTC & Dolar Kuru\n"
-                                "• `/rapor` - Saatlik Durum Özeti"
-                            )
-                            send_telegram_message(chat_id, welcome_msg)
+                            send_telegram_message(chat_id, "🚀 Apex Pro Terminal Aktif!")
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı! 🚀")
+                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı!")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
-                        elif text.startswith("/analiz"):
-                            btc, dolar = get_live_finans_data()
-                            analiz_msg = (
-                                "📊 *ANLIK PİYASA & RSI ANALİZİ*\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
-                                f"🧠 *Strateji:* Mikro kârlar ile dip avcılığı devrede.\n"
-                                f"⚡ *Durum:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
-                            )
-                            send_telegram_message(chat_id, analiz_msg)
-                        elif text.startswith("/cuzdan"):
-                            usdt = get_okx_usdt_balance()
-                            _, dolar = get_live_finans_data()
-                            try_val = usdt * dolar
-                            send_telegram_message(chat_id, f"💰 *Cüzdan Varlığı:* `{usdt:,.2f} USDT` (`₺{try_val:,.2f}`)")
-                        elif text.startswith("/kur"):
-                            btc, dolar = get_live_finans_data()
-                            send_telegram_message(chat_id, f"💱 *Kurlar*\n• BTC: `${btc:,.2f}`\n• USDT/TRY: `₺{dolar:.2f}`")
-                        elif text.startswith("/rapor"):
-                            btc, dolar = get_live_finans_data()
-                            usdt = get_okx_usdt_balance()
-                            try_bakiye = usdt * dolar
-                            rapor_msg = (
-                                "🌟 *APEX MANUEL RAPOR* 🚀\n"
-                                f"🪙 *BTC:* `${btc:,.2f}`\n"
-                                f"💵 *Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
-                                f"⚙️ *Bot Durumu:* {'Aktif 🟢' if BOT_CALISIYOR else 'Pasif 🔴'}"
-                            )
-                            send_telegram_message(chat_id, rapor_msg)
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
 
+
+# ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()

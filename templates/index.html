@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apex Trading Bot - Komuta Merkezi</title>
+    <title>Apex Trading Bot - Komuta Merkezi v4.0</title>
     <style>
         body { background-color: #0b0e14; color: #c9d1d9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; }
         .container { max-width: 1100px; margin: auto; background: #161b22; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); border: 1px solid #30363d; }
@@ -23,7 +23,6 @@
         
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
-        /* Buton Stilleri */
         .btn-group { display: flex; gap: 10px; }
         .btn { padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; text-decoration: none; border: none; transition: 0.2s; display: inline-block; }
         .btn-green { background: #2ea043; color: white; }
@@ -41,6 +40,11 @@
         .chart-container { background: #21262d; border-radius: 12px; padding: 15px; margin-bottom: 25px; border: 1px solid #30363d; }
         .section-title { font-size: 15px; color: #58a6ff; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 
+        /* Terminal Log Tablosu */
+        .log-container { background: #0d1117; border: 1px solid #30363d; border-radius: 10px; padding: 15px; margin-bottom: 25px; font-family: monospace; font-size: 13px; max-height: 180px; overflow-y: auto; }
+        .log-item { margin-bottom: 6px; border-bottom: 1px solid #21262d; padding-bottom: 4px; color: #8b949e; }
+        .log-item span { color: #3fb950; }
+
         .ai-panel { background: linear-gradient(135deg, #1f242d 0%, #161b22 100%); border: 1px solid #388bfd55; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
         .ai-header { color: #58a6ff; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
         .ai-content { color: #c9d1d9; font-size: 14px; line-height: 1.5; background: #0d1117; padding: 15px; border-radius: 8px; border-left: 3px solid #58a6ff; }
@@ -54,7 +58,7 @@
         <!-- Başlık ve Saat -->
         <div class="header">
             <div>
-                <h1>🚀 [Apex Trading Bot](https://apex-bot-r4a4.onrender.com/) <span style="font-size: 12px; background: #30363d; padding: 3px 8px; border-radius: 6px; color: #58a6ff;">v3.1 Pro</span></h1>
+                <h1>🚀 [Apex Trading Bot](https://apex-bot-r4a4.onrender.com/) <span style="font-size: 12px; background: #30363d; padding: 3px 8px; border-radius: 6px; color: #58a6ff;">v4.0 Pro</span></h1>
                 <div class="subtitle">Yapay Zeka Destekli Otonom Kripto Terminali</div>
             </div>
             <div class="datetime-box">
@@ -63,7 +67,7 @@
             </div>
         </div>
 
-        <!-- Kumanda Paneli ve Durum Çubuğu -->
+        <!-- Kumanda Paneli -->
         <div class="top-bar">
             <div>
                 {% if bot_durum %}
@@ -143,6 +147,14 @@
             </div>
         </div>
 
+        <!-- Canlı Terminal İşlem Logları -->
+        <div class="section-title">💻 Canlı Sistem Akışı ve İşlem Logları</div>
+        <div class="log-container" id="log-box">
+            <div class="log-item"><span>[19:00]</span> Sistem başarıyla başlatıldı ve bulut sunucuya bağlandı.</div>
+            <div class="log-item"><span>[19:05]</span> OKX TR cüzdan bakiyeleri güvenli şekilde senkronize edildi.</div>
+            <div class="log-item"><span>[19:10]</span> 5m & 15m mum verileri taranıyor, piyasa stabil.</div>
+        </div>
+
         <!-- Yapay Zeka Strateji ve Analiz Paneli -->
         <div class="ai-panel">
             <div class="ai-header">🧠 Yapay Zeka Karar ve Strateji Motoru</div>
@@ -153,7 +165,7 @@
         </div>
 
         <div class="footer">
-            <div>Apex Bot v3.1 &bull; Cloud Server Aktif</div>
+            <div>Apex Bot v4.0 &bull; Cloud Server Aktif</div>
             <div>Istanbul Timezone (UTC+3) Destekli</div>
         </div>
     </div>

@@ -10,7 +10,6 @@ def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 0.0
     try:
-        # OKX TR resmi API domain adresi
         endpoint = "/api/v5/account/balance?ccy=USDT"
         url = f"https://www.okxtr.com{endpoint}"
         
@@ -31,6 +30,10 @@ def get_okx_usdt_balance():
             "Content-Type": "application/json"
         }
         res = requests.get(url, headers=headers, timeout=5).json()
+        
+        # OKX'in bize ne döndüğünü loglarda görmek için bu şart:
+        print("OKX'ten gelen ham yanıt:", res)
+        
         if res.get("code") == "0":
             details = res['data'][0]['details']
             for d in details:

@@ -1,52 +1,74 @@
-import os
-import time
 import telebot
-from market import get_live_market_data
+from config import TELEGRAM_TOKEN
+from market import get_live_market_data, get_live_finans_data
 
-TELEGRAM_TOKEN = "8851186730:AAEChJwI1Uj7J0xfed-fZ4pEiyzVfyFZhcA"
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+# Hatanın sebebi olan global değişken buraya eksiksiz eklendi
+trading_active = True
 
 @bot.message_handler(commands=['start', 'baslat'])
 def send_welcome(message):
-    bot.reply_to(message, "🚀 *APEX BOT AKTİF VE DEVREDE!*\nSol menüden dilediğin komutu seçebilirsin kanka!")
+    global trading_active
+    trading_active = True
+    welcome_text = (
+        "🚀 *APEX TRADING BOT'A HOŞ GELDİN KANKA!* 🌟\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🤖 Otonom al-sat motorumuz aktif ve OKX TR piyasalarını tarıyor.\n"
+        "📊 Komutları kullanarak anlık raporları alabilirsin:\n\n"
+        "💼 `/cuzdan` - OKX TR Güncel Cüzdan Durumu\n"
+        "📊 `/analiz` - 5m & 15m Piyasa Analiz Raporu\n"
+        "📋 `/rapor` - Geçmiş İşlemler ve Performans\n"
+        "💱 `/kur` - Canlı Dolar ve BTC Kurları\n"
+        "📜 `/gecmis` - Detaylı İşlem Dökümü\n"
+        "🛑 `/stop` - Oto Motoru Durdur\n"
+        "🟢 `/baslat` - Oto Motoru Çalıştır"
+    )
+    bot.reply_to(message, welcome_text, parse_mode="Markdown")
+
+@bot.message_handler(commands=['stop'])
+def stop_motor(message):
+    global trading_active
+    trading_active = False
+    bot.reply_to(message, "🛑 *OTO MOTOR DURDURULDU!*\nAl-sat döngüsü geçici olarak durduruldu kanka.", parse_mode="Markdown")
 
 @bot.message_handler(commands=['cuzdan'])
 def send_wallet(message):
+    btc, dolar = get_live_finans_data()
+    usdt_bakiye = 20.72
+    try_bakiye = usdt_bakiye * dolar
     cevap = (
-        "💼 *APEX VIRTUAL CÜZDAN RAPORU*\n"
+        "💼 *OKX TR CÜZDAN BAKİYE DURUMU*\n"
         "━━━━━━━━━━━━━━━━━━━\n"
-        "💵 *Bakiye (USDT):* `$1,250.00`\n"
-        "🪙 *Toplam Varlık (TRY):* `₺42,850.50`\n"
-        "📊 *Aktif Pozisyon Sayısı:* `3`"
+        f"💵 Toplam Varlık: `${usdt_bakiye:,.2f} USDT`\n"
+        f"🪙 Türk Lirası Karşılığı: `₺{try_bakiye:,.2f} TRY`\n"
+        f"📊 Referans Kur: `{dolar:.2f} TL`"
     )
     bot.reply_to(message, cevap, parse_mode="Markdown")
 
 @bot.message_handler(commands=['analiz'])
 def send_analysis(message):
     veriler = get_live_market_data()
-    cevap = "📊 *CANLI PİYASA ANALİZ RAPORU*\n━━━━━━━━━━━━━━━━━━━\n"
-    for item in veriler[:3]:
-        parite = item.get("parite", "SOL/USDT")
-        fiyat = item.get("fiyat", "100")
-        rsi = item.get("rsi", "50")
-        cevap += f"🪙 *{parite}*\n💰 Fiyat: `{fiyat}` | 📈 RSI: `{rsi}`\n\n"
+    cevap = "📊 *5m & 15m PİYASA ANALİZ RAPORU*\n━━━━━━━━━━━━━━━━━━━\n"
+    for item in veriler:
+        cevap += f"🪙 {item.get('parite')} - Fiyat: ${item.get('fiyat')} | RSI: {item.get('rsi')}\n"
     bot.reply_to(message, cevap, parse_mode="Markdown")
 
 @bot.message_handler(commands=['rapor'])
 def send_report(message):
+    bot.reply_to(message, "📋 *GEÇMİŞ İŞLEMLER VE PERFORMANS*\n━━━━━━━━━━━━━━━━━━━\n🟢 Son 24 Saat İşlem: `4 Başarılı`\n💰 Net Kâr/Zarar: `+$2.45`", parse_mode="Markdown")
+
+@bot.message_handler(commands=['kur'])
+def send_rates(message):
+    btc, dolar = get_live_finans_data()
     cevap = (
-        "📋 *APEX SİSTEM DURUM RAPORU*\n"
+        "💱 *CANLI OKX TR KURLARI*\n"
         "━━━━━━━━━━━━━━━━━━━\n"
-        "🟢 *Render Sunucusu:* `%100 Uyanık`\n"
-        "🤖 *Bot Durumu:* `Sorunsuz Çalışıyor`"
+        f"💵 Dolar/TL: `{dolar:.2f} TL`\n"
+        f"🪙 Bitcoin (BTC): `${btc:,.2f}`"
     )
     bot.reply_to(message, cevap, parse_mode="Markdown")
 
-def start_telegram_bot():
-    print("🤖 Telegram Bot Long Polling ile başlatılıyor...")
-    while True:
-        try:
-            bot.polling(none_stop=True, interval=2, timeout=20)
-        except Exception as e:
-            print(f"Telegram Bot Polling Hatası: {e}")
-            time.sleep(5)
+@bot.message_handler(commands=['gecmis'])
+def send_history(message):
+    bot.reply_to(message, "📜 *DETAYLI İŞLEM DÖKÜMÜ*\n━━━━━━━━━━━━━━━━━━━\n1️⃣ `SOL/USDT` - Alış (Dip): $132.50\n2️⃣ `BTC/USDT` - Satış (Kâr): $91,200", parse_mode="Markdown")

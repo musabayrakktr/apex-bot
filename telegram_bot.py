@@ -38,3 +38,4 @@ def send_wallet(message):
 def send_rates(message):
     btc, dolar = get_live_finans_data()
     bot.send_message(message.chat.id, f"💱 *CANLI OKX KURLARI*\n━━━━━━━━━━━━━━━━━━━\n💵 Dolar/TL: `{dolar:.2f} TL`\n🪙 Bitcoin (BTC): `${btc:,.2f}`", parse_mode="Markdown")
+    

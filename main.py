@@ -7,32 +7,30 @@ from flask import Flask
 from market import get_live_market_data
 from strategy import analyze_market_for_dip
 
-TELEGRAM_TOKEN = "8978911397:AAFIfqHHWiOEOSvosxVn6taHt5mfJOeGNNk"
+TELEGRAM_TOKEN = "8978911397:AAEb6TH-PB4x3HQ3wU8i56clyU8GB_4pdaU"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
 trading_active = True
 
-# Canlı kur ve OKX verilerini çeken akıllı fonksiyon
+# OKX TR ve piyasa verilerini dinamik çeken fonksiyon
 def get_live_finans_data():
     try:
-        # OKX üzerinden güncel BTC ve Dolar (USDT/TRY) fiyatını çekelim
         url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         response = requests.get(url, timeout=5).json()
         btc_fiyat = float(response['data'][0]['last'])
         
-        # Dolar kuru için yaklaşık güncel piyasa veya OKX USDT/TRY paritesi
         usdt_try_url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
         try:
             res_try = requests.get(usdt_try_url, timeout=3).json()
             dolar_kur = float(res_try['data'][0]['last'])
         except:
-            dolar_kur = 34.50 # Yedek kur
+            dolar_kur = 34.50
             
         return btc_fiyat, dolar_kur
     except Exception as e:
-        print(f"Kur çekme hatası: {e}")
+        print(f"Finans veri hatası: {e}")
         return 91400.0, 34.50
 
 @app.route('/')
@@ -44,9 +42,9 @@ def home():
             <title>Apex Trading Bot - Live Control Panel</title>
             <meta charset="utf-8">
             <style>
-                body {{ background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding-top: 50px; }}
+                body {{ background-color: #0f172a; color: #f8fafc; font-family: sans-serif; text-align: center; padding-top: 50px; }}
                 .card {{ background: #1e293b; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid #334155; }}
-                h0 {{ color: #38bdf8; font-size: 28px; margin-bottom: 10px; }}
+                h1 {{ color: #38bdf8; font-size: 28px; margin-bottom: 10px; }}
                 .status {{ display: inline-block; background: #22c55e; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; margin: 15px 0; }}
                 .info {{ font-size: 16px; color: #94a3b8; margin: 10px 0; }}
                 .highlight {{ color: #facc15; font-weight: bold; }}
@@ -92,7 +90,6 @@ def stop_motor(message):
 @bot.message_handler(commands=['cuzdan'])
 def send_wallet(message):
     btc, dolar = get_live_finans_data()
-    # Örnek cüzdan bakiyesini güncel kura göre TL'ye çevirelim
     usdt_bakiye = 1250.00
     try_bakiye = usdt_bakiye * dolar
     cevap = (

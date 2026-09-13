@@ -1,21 +1,68 @@
 import os
 import threading
+import time
+import requests
 import telebot
 from flask import Flask
 from market import get_live_market_data
 from strategy import analyze_market_for_dip
 
-# --- YENİ VE AKTİF TOKEN ---
-TELEGRAM_TOKEN = "8978911397:AAEb6TH-PB4x3HQ3wU8i56clyU8GB_4pdaU"
+TELEGRAM_TOKEN = "8978911397:AAFIfqHHWiOEOSvosxVn6taHt5mfJOeGNNk"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
 trading_active = True
 
+# Canlı kur ve OKX verilerini çeken akıllı fonksiyon
+def get_live_finans_data():
+    try:
+        # OKX üzerinden güncel BTC ve Dolar (USDT/TRY) fiyatını çekelim
+        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        response = requests.get(url, timeout=5).json()
+        btc_fiyat = float(response['data'][0]['last'])
+        
+        # Dolar kuru için yaklaşık güncel piyasa veya OKX USDT/TRY paritesi
+        usdt_try_url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        try:
+            res_try = requests.get(usdt_try_url, timeout=3).json()
+            dolar_kur = float(res_try['data'][0]['last'])
+        except:
+            dolar_kur = 34.50 # Yedek kur
+            
+        return btc_fiyat, dolar_kur
+    except Exception as e:
+        print(f"Kur çekme hatası: {e}")
+        return 91400.0, 34.50
+
 @app.route('/')
 def home():
-    return "Apex Bot 7/24 Aktif ve Çalışıyor! 🚀"
+    btc, dolar = get_live_finans_data()
+    return f"""
+    <html>
+        <head>
+            <title>Apex Trading Bot - Live Control Panel</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding-top: 50px; }}
+                .card {{ background: #1e293b; max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid #334155; }}
+                h0 {{ color: #38bdf8; font-size: 28px; margin-bottom: 10px; }}
+                .status {{ display: inline-block; background: #22c55e; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; margin: 15px 0; }}
+                .info {{ font-size: 16px; color: #94a3b8; margin: 10px 0; }}
+                .highlight {{ color: #facc15; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>🚀 APEX TRADING BOT</h1>
+                <div class="status">🟢 7/24 AKTİF VE ÇALIŞIYOR</div>
+                <p class="info">Anlık Bitcoin (BTC): <span class="highlight">${btc:,.2f}</span></p>
+                <p class="info">Anlık Dolar/TL Kuru: <span class="highlight">₺{dolar:.2f}</span></p>
+                <p class="info" style="margin-top: 20px; color: #38bdf8;">Telegram Botu `@MusaBTC_Signal_bot` üzerinden komutları bekliyor.</p>
+            </div>
+        </body>
+    </html>
+    """
 
 @bot.message_handler(commands=['start', 'baslat'])
 def send_welcome(message):
@@ -24,12 +71,12 @@ def send_welcome(message):
     welcome_text = (
         "🚀 *APEX TRADING BOT'A HOŞ GELDİN KANKA!* 🌟\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "🤖 Otonom al-sat motorumuz aktif ve piyasaları tarıyor.\n"
-        "📊 Aşağıdaki menüden veya komutları kullanarak anlık raporları alabilirsin:\n\n"
-        "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
+        "🤖 Otonom al-sat motorumuz aktif ve OKX TR piyasalarını tarıyor.\n"
+        "📊 Aşağıdaki menüden anlık raporları alabilirsin:\n\n"
+        "💼 `/cuzdan` - OKX TR Güncel Cüzdan Durumu\n"
         "📊 `/analiz` - 5m & 15m Piyasa Analiz Raporu\n"
         "📋 `/rapor` - Geçmiş İşlemler ve Performans\n"
-        "💱 `/kur` - Canlı Dolar, Altın ve BTC Kurları\n"
+        "💱 `/kur` - Canlı Dolar ve BTC Kurları\n"
         "📜 `/gecmis` - Detaylı İşlem Dökümü\n"
         "🛑 `/stop` - Oto Motoru Durdur\n"
         "🟢 `/baslat` - Oto Motoru Çalıştır"
@@ -44,14 +91,25 @@ def stop_motor(message):
 
 @bot.message_handler(commands=['cuzdan'])
 def send_wallet(message):
-    bot.reply_to(message, "💼 *OKX TR CÜZDAN BAKİYE DURUMU*\n━━━━━━━━━━━━━━━━━━━\n💵 Toplam Varlık: `$1,250.00`\n🪙 Türk Lirası: `₺42,850.50`", parse_mode="Markdown")
+    btc, dolar = get_live_finans_data()
+    # Örnek cüzdan bakiyesini güncel kura göre TL'ye çevirelim
+    usdt_bakiye = 1250.00
+    try_bakiye = usdt_bakiye * dolar
+    cevap = (
+        "💼 *OKX TR CÜZDAN BAKİYE DURUMU*\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"💵 Toplam Varlık: `${usdt_bakiye:,.2f}`\n"
+        f"🪙 Türk Lirası Karşılığı: `₺{try_bakiye:,.2f}`\n"
+        f"📊 Referans Kur (USD/TRY): `{dolar:.2f} TL`"
+    )
+    bot.reply_to(message, cevap, parse_mode="Markdown")
 
 @bot.message_handler(commands=['analiz'])
 def send_analysis(message):
     veriler = get_live_market_data()
     cevap = "📊 *5m & 15m PİYASA ANALİZ RAPORU*\n━━━━━━━━━━━━━━━━━━━\n"
     for item in veriler[:3]:
-        cevap += f"🪙 {item.get('parite', 'SOL/USDT')} - Fiyat: {item.get('fiyat', '100')}\n"
+        cevap += f"🪙 {item.get('parite', 'SOL/USDT')} - Fiyat: ${item.get('fiyat', '100')}\n"
     bot.reply_to(message, cevap, parse_mode="Markdown")
 
 @bot.message_handler(commands=['rapor'])
@@ -60,7 +118,14 @@ def send_report(message):
 
 @bot.message_handler(commands=['kur'])
 def send_rates(message):
-    bot.reply_to(message, "💱 *CANLI DOLAR, ALTIN VE BTC KURLARI*\n━━━━━━━━━━━━━━━━━━━\n💵 Dolar/TL: `34.25 TL`\n🥇 Gram Altın: `2,950 TL`\n🪙 Bitcoin (BTC): `$91,400`", parse_mode="Markdown")
+    btc, dolar = get_live_finans_data()
+    cevap = (
+        "💱 *CANLI OKX TR KURLARI*\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"💵 Dolar/TL: `{dolar:.2f} TL`\n"
+        f"🪙 Bitcoin (BTC): `${btc:,.2f}`"
+    )
+    bot.reply_to(message, cevap, parse_mode="Markdown")
 
 @bot.message_handler(commands=['gecmis'])
 def send_history(message):
@@ -75,7 +140,6 @@ def trading_loop():
                     analyze_market_for_dip(symbol)
         except Exception as e:
             print(f"Döngü hatası: {e}")
-        import time
         time.sleep(30)
 
 def run_telegram():

@@ -1,6 +1,8 @@
 TELEGRAM_TOKEN = "8978911397:AAFIfqHHWiOEOSvosxVn6taHt5mfJOeGNNk"
 
-# OKX TR API Bilgilerin (Buraları kendi API anahtarlarınla doldurabilirsin)
-OKX_API_KEY = ""
-OKX_SECRET_KEY = ""
-OKX_PASSPHRASE = ""
+# OKX TR API Bilgilerin (Canlı bakiye çekebilmek için buraya kendi OKX API anahtarlarını yazmalısın)
+OKX_API_KEY = "BURAYA_API_KEY"
+OKX_SECRET_KEY = "BURAYA_SECRET_KEY"
+OKX_PASSPHRASE = "BURAYA_PASSPHRASE"
+
+SYMBOLS = ["SOL/USDT", "BTC/USDT", "ETH/USDT"]

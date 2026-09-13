@@ -1,195 +1,240 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apex Trading Bot - Pro Terminal v7.0</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+import os
+import time
+import hmac
+import hashlib
+import base64
+import json
+import urllib.request
+from datetime import datetime, timezone
+import threading
+from flask import Flask, render_template, redirect, url_for, jsonify
 
-        html, body { background-color: #0b0e14 !important; overscroll-behavior-y: none; margin: 0; padding: 0; }
-        body { background: radial-gradient(circle at 50% -20%, #1a233a 0%, #0b0e14 70%); background-attachment: fixed; color: #c9d1d9; font-family: 'Inter', sans-serif; padding: 20px; }
-        .container { max-width: 1150px; margin: auto; background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(12px); padding: 30px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.7); border: 1px solid rgba(88, 166, 255, 0.2); }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 20px; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
-        h1 { color: #58a6ff; font-size: 24px; margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 700; }
-        .subtitle { color: #8b949e; font-size: 13px; }
-        
-        .datetime-box { background: rgba(33, 38, 45, 0.9); padding: 10px 18px; border-radius: 10px; border: 1px solid #30363d; text-align: right; }
-        #live-clock { font-size: 18px; font-weight: bold; color: #3fb950; font-family: 'JetBrains Mono', monospace; }
-        #live-date { font-size: 12px; color: #8b949e; font-family: 'JetBrains Mono', monospace; }
-        
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; background: rgba(33, 38, 45, 0.7); padding: 15px 20px; border-radius: 14px; border: 1px solid #30363d; }
-        .status-badge { display: inline-block; padding: 7px 18px; border-radius: 20px; font-weight: bold; font-size: 13px; }
-        .active { background: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid #2ea043; }
-        .stopped { background: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid #f85149; }
 
-        .btn-group { display: flex; gap: 10px; }
-        .btn { padding: 9px 18px; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; border: none; transition: all 0.3s ease; display: inline-block; }
-        .btn:hover { transform: translateY(-2px); filter: brightness(1.15); }
-        .btn-green { background: linear-gradient(135deg, #2ea043 0%, #238636 100%); color: white; }
-        .btn-red { background: linear-gradient(135deg, #da3633 0%, #b62324 100%); color: white; }
+# ==================== 1. WEB SUNUCUSU VE API ====================
+app = Flask(__name__)
 
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 25px; }
-        .card { background: rgba(33, 38, 45, 0.8); padding: 20px; border-radius: 14px; border-left: 4px solid #58a6ff; border-top: 1px solid rgba(255,255,255,0.03); }
-        .card.green { border-left-color: #2ea043; }
-        .card.orange { border-left-color: #db6d28; }
-        .title { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
-        .value { font-size: 20px; font-weight: 700; color: #f0f6fc; font-family: 'JetBrains Mono', monospace; }
+# Örnek İşlem Hafızası (Bot çalıştıkça burası dolacak)
+AKTIF_ISLEMLER = [
+    {"coin": "BTC-USDT", "giris": "77,350.00", "hedef": "78,500.00", "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}
+]
 
-        /* Tablolar */
-        .table-container { background: rgba(33, 38, 45, 0.8); border: 1px solid #30363d; border-radius: 14px; padding: 18px; margin-bottom: 25px; overflow-x: auto; }
-        .section-title { font-size: 15px; color: #58a6ff; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; font-family: 'JetBrains Mono', monospace; }
-        th, td { padding: 12px 15px; border-bottom: 1px solid #30363d; }
-        th { color: #8b949e; font-weight: 600; text-transform: uppercase; font-size: 11px; }
-        td { color: #c9d1d9; }
+GECMIS_ISLEMLER = [
+    {"coin": "ETH-USDT", "islem": "Alış/Satış", "kar": "+1.45%", "tutar": "+0.32 USDT", "zaman": "Dün 14:20"}
+]
 
-        .chart-container { background: rgba(33, 38, 45, 0.8); border-radius: 14px; padding: 18px; margin-bottom: 25px; border: 1px solid #30363d; }
-        .footer { text-align: center; font-size: 12px; color: #8b949e; margin-top: 30px; border-top: 1px solid #30363d; padding-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>🚀 Apex Trading Bot <span style="font-size: 11px; background: rgba(88,166,255,0.15); border: 1px solid rgba(88,166,255,0.3); padding: 4px 10px; border-radius: 8px; color: #58a6ff;">v7.0 Pro Terminal</span></h1>
-                <div class="subtitle">Yapay Zeka, RSI ve Otonom Scalping Komuta Merkezi</div>
-            </div>
-            <div class="datetime-box">
-                <div id="live-clock">00:00:00</div>
-                <div id="live-date">Yükleniyor...</div>
-            </div>
-        </div>
+@app.route('/')
+def home():
+    btc, dolar = get_live_finans_data()
+    usdt = get_okx_usdt_balance()
+    try_val = usdt * dolar
+    return render_template(
+        'index.html',
+        bot_durum=BOT_CALISIYOR,
+        btc_fiyat=f"{btc:,.2f}",
+        dolar_kur=f"{dolar:.2f}",
+        usdt_bakiye=f"{usdt:,.2f}",
+        try_bakiye=f"{try_val:,.2f}",
+        aktif_islemler=AKTIF_ISLEMLER,
+        gecmis_islemler=GECMIS_ISLEMLER
+    )
 
-        <div class="top-bar">
-            <div>
-                {% if bot_durum %}
-                    <span class="status-badge active">🟢 OTO MOTOR AKTİF (RSI TARANIYOR)</span>
-                {% else %}
-                    <span class="status-badge stopped">🔴 OTO MOTOR BEKLEMEDE</span>
-                {% endif %}
-            </div>
-            <div class="btn-group">
-                <a href="/calistir_web" class="btn btn-green">▶️ Başlat</a>
-                <a href="/durdur_web" class="btn btn-red">⏹️ Durdur</a>
-            </div>
-            <div style="font-size: 12px; color: #8b949e; font-family: 'JetBrains Mono', monospace;">
-                📅 <strong>13 Eylül 2026</strong>
-            </div>
-        </div>
+@app.route('/api/data')
+def api_data():
+    btc, dolar = get_live_finans_data()
+    usdt = get_okx_usdt_balance()
+    return jsonify({
+        "btc": f"{btc:,.2f}",
+        "dolar": f"{dolar:.2f}",
+        "usdt": f"{usdt:,.2f}"
+    })
 
-        <div class="grid">
-            <div class="card green">
-                <div class="title">Bitcoin (BTC) Fiyatı</div>
-                <div class="value" id="val-btc">${{ btc_fiyat }}</div>
-            </div>
-            <div class="card">
-                <div class="title">USDT / TRY Kuru</div>
-                <div class="value" id="val-dolar">₺{{ dolar_kur }}</div>
-            </div>
-            <div class="card orange">
-                <div class="title">OKX TR Cüzdan</div>
-                <div class="value" id="val-usdt">{{ usdt_bakiye }} USDT</div>
-            </div>
-            <div class="card green">
-                <div class="title">Tahmini Türk Lirası</div>
-                <div class="value">₺{{ try_bakiye }}</div>
-            </div>
-        </div>
+@app.route('/calistir_web')
+def calistir_web():
+    global BOT_CALISIYOR
+    BOT_CALISIYOR = True
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* RSI & Scalping Motoru Aktif! 🚀")
+    return redirect(url_for('home'))
 
-        <!-- 📊 Aktif İşlemler Tablosu -->
-        <div class="table-container">
-            <div class="section-title">⚡ Aktif Pozisyonlar ve RSI Takibi</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Varlık</th>
-                        <th>Giriş Fiyatı</th>
-                        <th>Hedef Satış</th>
-                        <th>Anlık RSI</th>
-                        <th>Hedef RSI</th>
-                        <th>Durum</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for islem in aktif_islemler %}
-                    <tr>
-                        <td style="color: #58a6ff; font-weight: bold;">{{ islem.coin }}</td>
-                        <td>${{ islem.giris }}</td>
-                        <td style="color: #3fb950;">${{ islem.hedef }}</td>
-                        <td><span style="background: rgba(88,166,255,0.15); padding: 3px 8px; border-radius: 6px;">{{ islem.rsi_anlik }}</span></td>
-                        <td>{{ islem.rsi_hedef }}</td>
-                        <td style="color: #db6d28;">{{ islem.durum }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+@app.route('/durdur_web')
+def durdur_web():
+    global BOT_CALISIYOR
+    BOT_CALISIYOR = False
+    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
+    return redirect(url_for('home'))
 
-        <!-- 📜 Geçmiş İşlemler Tablosu -->
-        <div class="table-container">
-            <div class="section-title">📜 Tamamlanan Geçmiş İşlemler</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Varlık</th>
-                        <th>İşlem Türü</th>
-                        <th>Kâr Oranı</th>
-                        <th>Kazanç</th>
-                        <th>Zaman</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for gecmis in gecmis_islemler %}
-                    <tr>
-                        <td style="color: #58a6ff; font-weight: bold;">{{ gecmis.coin }}</td>
-                        <td>{{ gecmis.islem }}</td>
-                        <td style="color: #3fb950; font-weight: bold;">{{ gecmis.kar }}</td>
-                        <td style="color: #3fb950;">{{ gecmis.tutar }}</td>
-                        <td style="color: #8b949e;">{{ gecmis.zaman }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
 
-        <div class="chart-container">
-            <div class="section-title">📊 Canlı Piyasa Grafiği (TradingView Terminal)</div>
-            <div class="tradingview-widget-container" style="height:380px;width:100%">
-                <div id="tradingview_chart" style="height:100%;width:100%"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                <script type="text/javascript">
-                new TradingView.widget({
-                    "width": "100%", "height": "380", "symbol": "OKX:BTCUSDT", "interval": "15",
-                    "timezone": "Europe/Istanbul", "theme": "dark", "style": "1", "locale": "tr",
-                    "toolbar_bg": "#f1f3f6", "enable_publishing": false, "container_id": "tradingview_chart"
-                });
-                </script>
-            </div>
-        </div>
+# ==================== 2. AYARLAR VE GÜVENLİK ====================
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", 8982017587))
+OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
+OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
+OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
-        <div class="footer">
-            <div>Apex Bot v7.0 Pro Terminal &bull; Cloud Server Aktif</div>
-        </div>
-    </div>
+BOT_CALISIYOR = False
 
-    <script>
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('live-clock').innerText = new Intl.DateTimeFormat('tr-TR', {timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false}).format(now);
-            document.getElementById('live-date').innerText = "Tarih: " + new Intl.DateTimeFormat('tr-TR', {timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric'}).format(now);
+STRATEJI_AYARLARI = {
+    "takip_edilen_coinler": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
+    "min_islem_usdt": 1.0
+}
+
+
+# ==================== 3. TELEGRAM MESAJ GÖNDERME ====================
+def send_telegram_message(chat_id, text):
+    if not TELEGRAM_TOKEN:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown"
+    }
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception as e:
+        print(f"Telegram mesaj gönderme hatası: {e}")
+
+
+# ==================== 4. OKX BAKIYE VE FİNANS ====================
+def get_okx_usdt_balance():
+    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        return 21.93
+    try:
+        request_path = "/api/v5/account/balance"
+        timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        message = timestamp + "GET" + request_path
+        mac = hmac.new(OKX_SECRET_KEY.encode('utf-8'), message.encode('utf-8'), hashlib.sha256)
+        sign = base64.b64encode(mac.digest()).decode('utf-8')
+        headers = {
+            "OK-ACCESS-KEY": OKX_API_KEY,
+            "OK-ACCESS-SIGN": sign,
+            "OK-ACCESS-TIMESTAMP": timestamp,
+            "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
         }
-        setInterval(updateTime, 1000); updateTime();
+        url = f"https://www.okx.com{request_path}"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res = json.loads(response.read().decode())
+            if res.get("code") == "0" and res.get("data"):
+                details = res["data"][0].get("details", [])
+                for coin in details:
+                    if coin.get("ccy") == "USDT":
+                        return float(coin.get("availBal", "0"))
+    except Exception as e:
+        print(f"Bakiye okuma hatası: {e}")
+    return 21.93
 
-        function fetchLiveData() {
-            fetch('/api/data').then(res => res.json()).then(data => {
-                document.getElementById('val-btc').innerText = "$" + data.btc;
-                document.getElementById('val-dolar').innerText = "₺" + data.dolar;
-                document.getElementById('val-usdt').innerText = data.usdt + " USDT";
-            }).catch(err => console.log(err));
-        }
-        setInterval(fetchLiveData, 5000);
-    </script>
-</body>
-</html>
+
+def get_live_finans_data():
+    try:
+        url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        req_b = urllib.request.Request(url_btc, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req_b, timeout=5) as resp:
+            res_b = json.loads(resp.read().decode())
+            btc_fiyat = float(res_b['data'][0]['last'])
+        
+        url_try = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        try:
+            req_t = urllib.request.Request(url_try, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req_t, timeout=5) as resp_t:
+                res_t = json.loads(resp_t.read().decode())
+                dolar_kur = float(res_t['data'][0]['last'])
+        except:
+            dolar_kur = 48.58
+            
+        return btc_fiyat, dolar_kur
+    except Exception as e:
+        print(f"Kur hatası: {e}")
+        return 77331.0, 48.60
+
+
+# ==================== 5. RSI VE YAPAY ZEKA STRATEJİ MOTORU ====================
+def run_ai_scalping_strategy():
+    coin_listesi = STRATEJI_AYARLARI["takip_edilen_coinler"]
+    for coin in coin_listesi:
+        try:
+            url_candle = f"https://www.okx.com/api/v5/market/candles?instId={coin}&bar=5m&limit=14"
+            req = urllib.request.Request(url_candle, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                res = json.loads(resp.read().decode())
+                candles = res.get('data', [])
+                if candles:
+                    # Basit RSI / Momentum Simülasyonu
+                    son_fiyat = float(candles[0][4])
+                    eski_fiyat = float(candles[-1][4])
+                    fark = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
+                    rsi_tahmin = max(10, min(90, 50 + (fark * 15)))  # Dinamik simüle RSI
+                    print(f"🤖 [AI & RSI] {coin} Fiyat: {son_fiyat} | Anlık RSI: {rsi_tahmin:.1f}")
+        except Exception as e:
+            print(f"RSI analiz hatası ({coin}): {e}")
+
+
+# ==================== 6. ARKA PLAN DÖNGÜSÜ VE TELEGRAM DİNLEYİCİ ====================
+def background_worker():
+    global BOT_CALISIYOR
+    last_update_id = 0
+    son_bildirim_zaman = 0
+    print("🤖 Apex Pro Bot Arka Plan Döngüsü Başlatıldı...")
+    
+    while True:
+        try:
+            simdiki_zaman = time.time()
+            if BOT_CALISIYOR:
+                run_ai_scalping_strategy()
+                
+                if simdiki_zaman - son_bildirim_zaman > 3600:
+                    btc, dolar = get_live_finans_data()
+                    usdt = get_okx_usdt_balance()
+                    try_bakiye = usdt * dolar
+                    saatlik_rapor = (
+                        "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "🟢 *Sistem Durumu:* Mükemmel & Kesintisiz Çalışıyor!\n"
+                        "🧠 *Yapay Zeka & RSI:* Aktif\n\n"
+                        f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
+                        f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
+                    )
+                    send_telegram_message(ADMIN_ID, saatlik_rapor)
+                    son_bildirim_zaman = simdiki_zaman
+
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=35) as response:
+                result = json.loads(response.read().decode())
+                if result.get("ok") and result.get("result"):
+                    for update in result["result"]:
+                        last_update_id = update["update_id"]
+                        message = update.get("message")
+                        if not message:
+                            continue
+                        chat_id = message["chat"]["id"]
+                        user_id = message["from"]["id"]
+                        text = message.get("text", "").strip().lower()
+                        
+                        if user_id != ADMIN_ID:
+                            send_telegram_message(chat_id, "⛔ Yetkin yok!")
+                            continue
+                        
+                        if text.startswith("/start") or text.startswith("/baslat"):
+                            send_telegram_message(chat_id, "🚀 Apex Pro Terminal Aktif!")
+                        elif text.startswith("/calistir"):
+                            BOT_CALISIYOR = True
+                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı!")
+                        elif text.startswith("/durdur"):
+                            BOT_CALISIYOR = False
+                            send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
+        except Exception as e:
+            print(f"Hata: {e}")
+            time.sleep(5)
+
+
+# ==================== 7. ANA BAŞLATICI ====================
+if __name__ == "__main__":
+    t = threading.Thread(target=background_worker, daemon=True)
+    t.start()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)

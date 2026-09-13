@@ -37,7 +37,7 @@ def start_telegram_bot():
                     if not text or str(chat_id) != str(TELEGRAM_CHAT_ID):
                         continue
                         
-                    # Menü Komutlarını Eşleme
+                    # 1. CÜZDAN RAPORU
                     if text in ["/cuzdan", "cüzdan"]:
                         cevap = (
                             "💼 *APEX VIRTUAL CÜZDAN RAPORU*\n"
@@ -50,6 +50,7 @@ def start_telegram_bot():
                         )
                         send_telegram(cevap)
                         
+                    # 2. CANLI PİYASA ANALİZİ
                     elif text in ["/analiz", "analiz"]:
                         veriler = get_live_market_data()
                         cevap = "📊 *CANLI PİYASA ANALİZ RAPORU*\n━━━━━━━━━━━━━━━━━━━\n"
@@ -60,6 +61,7 @@ def start_telegram_bot():
                             cevap += f"🪙 *{parite}*\n💰 Fiyat: `{fiyat}` | 📈 RSI: `{rsi}`\n\n"
                         send_telegram(cevap)
                         
+                    # 3. SİSTEM RAPORU
                     elif text in ["/rapor", "rapor"]:
                         cevap = (
                             "📋 *APEX SİSTEM DURUM RAPORU*\n"
@@ -71,6 +73,7 @@ def start_telegram_bot():
                         )
                         send_telegram(cevap)
                         
+                    # 4. İŞLEM GEÇMİŞİ
                     elif text in ["/gecmis", "geçmiş"]:
                         cevap = (
                             "📜 *SON İŞLEM GEÇMİŞİ*\n"
@@ -82,6 +85,7 @@ def start_telegram_bot():
                         )
                         send_telegram(cevap)
                         
+                    # 5. GÜNCEL KURLAR
                     elif text in ["/kur", "kur"]:
                         cevap = (
                             "💱 *GÜNCEL DÖVİZ / KRİPTO KURLARI*\n"
@@ -93,6 +97,7 @@ def start_telegram_bot():
                         )
                         send_telegram(cevap)
                         
+                    # 6. BAŞLAT / START
                     elif text in ["/start", "/baslat", "başlat"]:
                         cevap = (
                             "🚀 *APEX BOT AKTİF VE DEVREDE!* \n"
@@ -101,6 +106,7 @@ def start_telegram_bot():
                         )
                         send_telegram(cevap)
 
+                    # 7. DURDUR / STOP
                     elif text in ["/stop", "/durdur", "durdur"]:
                         cevap = (
                             "🛑 *APEX BOT DURDURULDU*\n"

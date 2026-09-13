@@ -11,14 +11,19 @@ def index():
 def api_status():
     veriler = get_live_market_data()
     
-    # Gerçek Veri Analizli Yapay Zeka Modülü
     ai_predictions = []
     for item in veriler:
         parite = item.get("parite", "SOL/USDT")
-        fiyat = float(item.get("fiyat", 100.0))
+        
+        # Fiyattaki '$' ve ',' karakterlerini temizle ki ValueError vermesin
+        raw_price = str(item.get("fiyat", "100.0")).replace("$", "").replace(",", "").strip()
+        try:
+            fiyat = float(raw_price)
+        except ValueError:
+            fiyat = 100.0
+            
         rsi = float(item.get("rsi", 45.0))
         
-        # RSI ve Fiyat Mantığına Dayalı Canlı AI Kararı
         if rsi < 40:
             signal = "🚀 YÜKSELİŞ BEKLENTİSİ"
             confidence = round(85 + (40 - rsi) * 0.5, 1)

@@ -6,8 +6,8 @@ from flask import Flask
 from market import get_live_market_data
 from strategy import analyze_market_for_dip
 
-# --- YENİ TOKEN ---
-TELEGRAM_TOKEN = "878255347:AAHcCSMhhO7Z06laxEeYl8O1xAZ3KXQyNxc"
+# --- YENİ VE KESİN TOKEN ---
+TELEGRAM_TOKEN = "8978911397:AAFIfqHHWiOEOSvosxVn6taHt5mfJOeGNNk"
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)

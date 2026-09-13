@@ -7,10 +7,10 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 import threading
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for
 
 
-# ==================== 1. WEB SUNUCUSU VE CANLI PANEL ====================
+# ==================== 1. WEB SUNUCUSU VE KUMANDA PANELİ ====================
 app = Flask(__name__)
 
 @app.route('/')
@@ -27,6 +27,20 @@ def home():
         try_bakiye=f"{try_val:,.2f}"
     )
 
+@app.route('/calistir_web')
+def calistir_web():
+    global BOT_CALISIYOR
+    BOT_CALISIYOR = True
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Oto Motor Çalıştırıldı! 🚀")
+    return redirect(url_for('home'))
+
+@app.route('/durdur_web')
+def durdur_web():
+    global BOT_CALISIYOR
+    BOT_CALISIYOR = False
+    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
+    return redirect(url_for('home'))
+
 
 # ==================== 2. AYARLAR VE GÜVENLİK ====================
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -35,7 +49,6 @@ OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
-# Otomatik Motor Durum Kontrolü için Global Değişken
 BOT_CALISIYOR = False
 
 
@@ -150,13 +163,12 @@ def process_telegram_updates():
     global BOT_CALISIYOR
     last_update_id = 0
     son_saatlik_bildirim = 0
-    print("🤖 Telegram Bot dinlemede (Templates Web Panel Modu)...")
+    print("🤖 Telegram Bot dinlemede (Kumanda Paneli & Bildirim Modu)...")
     
     while True:
         try:
             simdiki_zaman = time.time()
             
-            # SAATLİK OTOMATİK BİLDİRİM (Her 1 saatte bir)
             if BOT_CALISIYOR and (simdiki_zaman - son_saatlik_bildirim > 3600):
                 btc, dolar = get_live_finans_data()
                 usdt_bakiye = get_okx_usdt_balance()
@@ -195,7 +207,7 @@ def process_telegram_updates():
                             welcome_text = (
                                 "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Templates web panel ve saatlik bildirimler aktif!\n\n"
+                                "✅ Web komuta merkezi ve saatlik bildirimler aktif!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
                                 "📊 `/analiz` - Akıllı 5m & 15m Piyasa Analizi\n"
                                 "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
@@ -275,7 +287,7 @@ def process_telegram_updates():
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex Bot & Web Panel Başlatılıyor...")
+    print("🌟 Apex Bot & Kumanda Paneli Başlatılıyor...")
     t = threading.Thread(target=process_telegram_updates, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

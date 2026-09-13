@@ -72,3 +72,4 @@ STRATEJI_AYARLARI = {
     "takip_edilen_coinler": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
     "min_islem_usdt": 1.0
 }
+

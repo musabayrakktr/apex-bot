@@ -1,8 +1,9 @@
-TELEGRAM_TOKEN = "8978911397:AAEb6TH-PB4x3HQ3wU8i56clyU8GB_4pdaU"
+import os
 
-# OKX TR API Bilgilerin (Canlı bakiye çekebilmek için buraya kendi OKX API anahtarlarını yazmalısın)
-OKX_API_KEY = "BURAYA_API_KEY"
-OKX_SECRET_KEY = "BURAYA_SECRET_KEY"
-OKX_PASSPHRASE = "BURAYA_PASSPHRASE"
+# Tüm hassas bilgiler güvenli bir şekilde Render Environment'tan alınır
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
+OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
+OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 SYMBOLS = ["SOL/USDT", "BTC/USDT", "ETH/USDT"]

@@ -3,217 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX Bot Terminal</title>
+    <title>APEX Trading Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --bg-color: #0b0e14;
-            --card-bg: #151921;
-            --border-color: #232936;
-            --accent-color: #00e676;
-            --text-main: #f0f4f8;
-            --text-sub: #8a96a3;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
-            margin-bottom: 25px;
-        }
-
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            color: #00b0ff;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status-badge {
-            background: rgba(0, 230, 118, 0.1);
-            color: var(--accent-color);
-            border: 1px solid var(--accent-color);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: bold;
-        }
-
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        .card-title {
-            color: var(--text-sub);
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-
-        .val-usdt {
-            font-size: 32px;
-            font-weight: bold;
-            color: #ffffff;
-        }
-
-        .val-try {
-            font-size: 18px;
-            color: var(--accent-color);
-            margin-top: 5px;
-            font-weight: 600;
-        }
-
-        .chart-section {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        .chart-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            overflow-x: auto;
-        }
-
-        .tab-btn {
-            background: #1c222d;
-            border: 1px solid var(--border-color);
-            color: var(--text-sub);
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-
-        .tab-btn.active, .tab-btn:hover {
-            background: #00b0ff;
-            color: #fff;
-            border-color: #00b0ff;
-        }
-
-        .tv-container {
-            height: 500px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
+        body { background-color: #0b0e14; color: #e1e3e6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card-custom { background: #151a23; border: 1px solid #232a37; border-radius: 12px; }
+        .text-neon-green { color: #00f2fe; }
+        .badge-dip { background-color: #00c853; color: #fff; }
+        .badge-wait { background-color: #2979ff; color: #fff; }
+        .badge-danger { background-color: #ff1744; color: #fff; }
     </style>
 </head>
-<body>
-
-    <div class="header">
-        <h1>⚡ APEX BOT TERMINAL</h1>
-        <div class="status-badge">● SİSTEM AKTİF</div>
-    </div>
-
-    <div class="grid-container">
-        <!-- Canlı Kasa Kartı (USDT + TRY) -->
-        <div class="card">
-            <div class="card-title">💰 TOPLAM KASA VARLIĞI</div>
-            <div class="val-usdt" id="usdt-val">Yükleniyor...</div>
-            <div class="val-try" id="try-val">₺ -- TRY</div>
-        </div>
-
-        <!-- Dolar Kuru Card -->
-        <div class="card">
-            <div class="card-title">💱 ANLIK USDT / TRY KURU</div>
-            <div class="val-usdt" id="rate-val">₺34.20</div>
-            <div style="color: var(--text-sub); font-size: 12px; margin-top: 5px;">OKX TR Canlı Fiyat</div>
-        </div>
-
-        <!-- Motor Kapasitesi -->
-        <div class="card">
-            <div class="card-title">📊 ALIM KAPASİTESİ</div>
-            <div class="val-usdt">5 Parite</div>
-            <div style="color: var(--accent-color); font-size: 14px; margin-top: 5px;">Coin Başı ~5.0 USDT</div>
-        </div>
-    </div>
-
-    <!-- TradingView Canlı Mum Grafikleri -->
-    <div class="chart-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-            <h3 style="margin:0; font-size: 16px;">📈 TRADINGVIEW CANLI GRAFİK MOTORU</h3>
-            <div class="chart-tabs">
-                <button class="tab-btn active" onclick="loadChart('OKX:BTCUSDT')">BTC/USDT</button>
-                <button class="tab-btn" onclick="loadChart('OKX:ETHUSDT')">ETH/USDT</button>
-                <button class="tab-btn" onclick="loadChart('OKX:SOLUSDT')">SOL/USDT</button>
-                <button class="tab-btn" onclick="loadChart('OKX:AVAXUSDT')">AVAX/USDT</button>
-                <button class="tab-btn" onclick="loadChart('OKX:XRPUSDT')">XRP/USDT</button>
+<body class="p-3">
+    <div class="container-fluid">
+        <!-- HEADER -->
+        <div class="d-flex justify-content-between align-items-center mb-4 p-3 card-custom">
+            <div>
+                <h3 class="m-0 text-neon-green fw-bold">⚡ APEX TRADING TERMINAL</h3>
+                <small class="text-muted">OKX TR Otomatik Dip & Kâr Avcısı</small>
+            </div>
+            <div>
+                <button class="btn btn-success me-2" onclick="controlBot('start')">▶️ Botu Başlat</button>
+                <button class="btn btn-danger" onclick="controlBot('stop')">🛑 Botu Durdur</button>
             </div>
         </div>
-        
-        <div id="tradingview_widget" class="tv-container"></div>
+
+        <!-- METRİKLER -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card-custom p-3 text-center">
+                    <small class="text-muted">TOPLAM KASA VARLIĞI</small>
+                    <h2 class="text-success mt-1" id="usdt-val">20.72 USDT</h2>
+                    <span class="text-muted" id="try-val">₺1,006.58 TRY</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card-custom p-3 text-center">
+                    <small class="text-muted">ANLIK DOLAR KURU (USDT/TRY)</small>
+                    <h2 class="text-warning mt-1" id="try-rate">₺48.58</h2>
+                    <span class="text-muted">OKX TR Canlı Veri</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card-custom p-3 text-center">
+                    <small class="text-muted">BOT DURUMU</small>
+                    <h2 class="text-info mt-1" id="bot-status">🟢 7/24 Aktif</h2>
+                    <span class="text-muted">Dip Taraması Çalışıyor</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PİYASA RADAR KARTLARI -->
+        <h5 class="fw-bold mb-3">📡 Canlı Coin Dip Radarı</h5>
+        <div class="row g-3 mb-4" id="market-radar">
+            <!-- JS ile dolacak -->
+        </div>
+
+        <!-- GRAFİK VE TABLO -->
+        <div class="row g-3 mb-4">
+            <div class="col-lg-7">
+                <div class="card-custom p-3">
+                    <h5 class="fw-bold mb-3">📈 TradingView Canlı Grafik</h5>
+                    <div id="tradingview_widget" style="height: 400px;"></div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card-custom p-3">
+                    <h5 class="fw-bold mb-3">📊 Portföy Büyüme Grafiği</h5>
+                    <canvas id="portfolioChart" style="max-height: 380px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- İŞLEM TABLOSU -->
+        <div class="card-custom p-3">
+            <h5 class="fw-bold mb-3">📜 Açık Pozisyonlar & İşlem Geçmişi</h5>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Parite</th>
+                            <th>İşlem Tipi</th>
+                            <th>Giriş Fiyatı</th>
+                            <th>Güncel Fiyat</th>
+                            <th>Kâr / Zarar (%)</th>
+                            <th>Durum</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trade-history-table">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">Aktif pozisyon bulunmuyor (Dip aranıyor)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <!-- TradingView Script -->
+    <!-- TradingView Widget Script -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-    <script type="text/javascript">
-        let currentSymbol = 'OKX:BTCUSDT';
+    <script>
+        new TradingView.widget({
+            "autosize": true,
+            "symbol": "OKX:BTCUSDT",
+            "interval": "5",
+            "timezone": "Etc/UTC",
+            "theme": "dark",
+            "style": "1",
+            "locale": "tr",
+            "container_id": "tradingview_widget"
+        });
 
-        function loadChart(symbol) {
-            currentSymbol = symbol;
-            
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                if(btn.getAttribute('onclick').includes(symbol)) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
+        // Portföy Grafiği
+        const ctx = document.getElementById('portfolioChart').getContext('2d');
+        const portfolioChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['10 Sep', '11 Sep', '12 Sep', '13 Sep'],
+                datasets: [{
+                    label: 'Kasa (USDT)',
+                    data: [20.0, 20.2, 20.5, 20.72],
+                    borderColor: '#00f2fe',
+                    backgroundColor: 'rgba(0, 242, 254, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
 
-            new TradingView.widget({
-                "autosize": true,
-                "symbol": symbol,
-                "interval": "5",
-                "timezone": "Europe/Istanbul",
-                "theme": "dark",
-                "style": "1",
-                "locale": "tr",
-                "toolbar_bg": "#f1f3f6",
-                "enable_publishing": false,
-                "hide_side_toolbar": false,
-                "container_id": "tradingview_widget"
-            });
+        function controlBot(action) {
+            alert(action === 'start' ? '▶️ Bot Başlatıldı!' : '🛑 Bot Durduruldu!');
         }
-
-        function updateBalance() {
-            fetch('/api/status')
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('usdt-val').innerText = data.usdt + ' USDT';
-                    document.getElementById('try-val').innerText = '₺' + data.try + ' TRY';
-                    document.getElementById('rate-val').innerText = '₺' + data.try_rate;
-                })
-                .catch(err => console.log(err));
-        }
-
-        loadChart('OKX:BTCUSDT');
-        updateBalance();
-        setInterval(updateBalance, 5000);
     </script>
 </body>
 </html>

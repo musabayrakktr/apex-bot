@@ -6,11 +6,12 @@ import time
 from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
 def get_okx_usdt_balance():
-    """OKX TR hesabından canlı USDT bakiyesini API ile çeker."""
+    """OKX TR hesabından canlı USDT bakiyesini çeker."""
+    # Eğer API anahtarları girilmemişse test amaçlı veya senin bildiğin bakiye yerine 
+    # gerçek durumu görmek için burayı kontrol ediyoruz.
     if not OKX_API_KEY or OKX_API_KEY == "BURAYA_API_KEY":
-        # API anahtarı girilmediyse test için uyarı ve 0 döner (Canlı çekmesi için API şarttır)
-        print("⚠️ OKX API anahtarları girilmemiş! Canlı bakiye için config.py içine API bilgileri girilmelidir.")
-        return 0.0
+        print("⚠️ OKX API anahtarları eksik! config.py dosyasına anahtarlarını yazmalısın.")
+        return 0.0  # Anahtar yoksa 0 döner, böylece API girmen gerektiğin anlarsın
     
     try:
         endpoint = "/api/v5/account/balance?ccy=USDT"
@@ -34,6 +35,8 @@ def get_okx_usdt_balance():
         }
         
         res = requests.get(url, headers=headers, timeout=5).json()
+        print(f"OKX API Yanıtı: {res}") # Loglarda hatayı net görelim diye
+        
         if res.get("code") == "0":
             details = res['data'][0]['details']
             for d in details:

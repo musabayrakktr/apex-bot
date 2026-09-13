@@ -1,49 +1,46 @@
 import os
-import threading
-from telegram_bot import handle_message, set_telegram_commands
-from web import app
 import time
-import json
-import urllib.request
-from config import TELEGRAM_TOKEN
+import threading
+from web import app
+from strategy import analyze_market_for_dip
+from trader import execute_buy_order
+from telegram_bot import set_telegram_commands
 
-def telegram_listener():
-    """Telegram mesajlarını arka planda kesintisiz dinleyen döngü"""
-    offset = 0
-    # Eski çakışan webhook'ları temizle
+# Takip edilen coinler
+SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "AVAX/USDT", "XRP/USDT"]
+
+def auto_trading_loop():
+    """Arka planda piyasayı sürekli tarayan ve alım tetikleyen döngü"""
+    time.sleep(5)  # Sunucu açılırken 5 sn bekle
+    print("🤖 APEX Oto Alım-Satım Motoru Başlatıldı...")
+    
+    # Telegram menü komutlarını ayarla
     try:
-        urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=5)
-    except Exception:
-        pass
+        set_telegram_commands()
+    except Exception as e:
+        print(f"Telegram set commands hatası: {e}")
 
     while True:
         try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={offset}&timeout=10"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=12) as res:
-                data = json.loads(res.read().decode())
-                if data.get("ok") and data.get("result"):
-                    for update in data["result"]:
-                        offset = update["update_id"] + 1
-                        if "message" in update:
-                            msg = update["message"]
-                            text = msg.get("text", "").strip()
-                            chat_id = msg.get("chat", {}).get("id")
-                            if text and chat_id:
-                                handle_message(text, chat_id)
-        except Exception:
-            time.sleep(2)
+            for symbol in SYMBOLS:
+                should_buy, price, rsi, reason = analyze_market_for_dip(symbol)
+                
+                if should_buy:
+                    print(f"🎯 Dip Yakalandı ({symbol})! Alım yapılıyor...")
+                    execute_buy_order(symbol, price, rsi)
+                    # Test modunda her 30 saniyede bir alım yapmaması için kısa bekleme
+                    time.sleep(15)
+                    break
+        except Exception as e:
+            print(f"Döngü hatası: {e}")
+            
+        time.sleep(10)  # Her 10 saniyede bir tbox taraması yapar
 
 if __name__ == '__main__':
-    try:
-        set_telegram_commands()
-    except Exception:
-        pass
-        
-    # 1. Telegram dinleyicisini arka plan thread'inde başlat
-    t_tele = threading.Thread(target=telegram_listener, daemon=True)
-    t_tele.start()
+    # Alım motorunu arka planda (Thread) başlat
+    trading_thread = threading.Thread(target=auto_trading_loop, daemon=True)
+    trading_thread.start()
     
-    # 2. Render portunu dinleyen Flask web sunucusunu ana kanalda başlat
+    # Flask Web Sunucusunu çalıştır
     port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port, use_reloader=False)
+    app.run(host='0.0.0.0', port=port)

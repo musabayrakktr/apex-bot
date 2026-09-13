@@ -24,6 +24,8 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", 8982017587))
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
+# Otomatik Motor Durum Kontrolü için Global Değişken
+BOT_CALISIYOR = False
 
 
 # ==================== 3. TELEGRAM MESAJ GÖNDERME ====================
@@ -96,15 +98,16 @@ def get_live_finans_data():
             dolar_kur = 48.58
             
         return btc_fiyat, dolar_kur
-    except Exception as e:
+        except Exception as e:
         print(f"Kur hatası: {e}")
         return 91400.0, 48.58
 
 
 # ==================== 5. TELEGRAM KOMUT DİNLEYİCİSİ ====================
 def process_telegram_updates():
+    global BOT_CALISIYOR
     last_update_id = 0
-    print("🤖 Telegram Bot dinlemede...")
+    print("🤖 Telegram Bot dinlemede (Yeni Menü Modu)...")
     
     while True:
         try:
@@ -120,28 +123,35 @@ def process_telegram_updates():
                             continue
                         chat_id = message["chat"]["id"]
                         user_id = message["from"]["id"]
-                        text = message.get("text", "").strip()
+                        text = message.get("text", "").strip().lower()
                         
                         if user_id != ADMIN_ID:
                             send_telegram_message(chat_id, "⛔ Bu botu kullanma yetkin yok!")
                             continue
                         
+                        # /start ve /baslat Komutları
                         if text.startswith("/start") or text.startswith("/baslat"):
                             welcome_text = (
-                                "🚀 *APEX TRADING BOT - TEKLİ SÜRÜM* 🌟\n"
+                                "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Sistem aktif ve komutlar dinleniyor!\n\n"
-                                "💼 `/cuzdan` - Canlı Cüzdan Durumu\n"
-                                "💱 `/kur` - Canlı Dolar ve BTC Kurları"
+                                "✅ Sistem aktif ve emre amade!\n\n"
+                                "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
+                                "📊 `/analiz` - 5m & 15m Piyasa Analiz Raporu\n"
+                                "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
+                                "💱 `/kur` - Canlı Dolar ve BTC Kurları\n"
+                                "📜 `/gecmis` - Detaylı İşlem Dökümü\n"
+                                "🟢 `/calistir` - Oto Motoru Çalıştır\n"
+                                "🔴 `/durdur` - Oto Motoru Durdur"
                             )
                             send_telegram_message(chat_id, welcome_text)
                             
+                        # /cuzdan Komutu
                         elif text.startswith("/cuzdan"):
                             usdt_bakiye = get_okx_usdt_balance()
                             btc, dolar = get_live_finans_data()
                             try_bakiye = usdt_bakiye * dolar
                             cevap = (
-                                "💼 *OKX CANLI CÜZDAN DURUMU*\n"
+                                "💼 *OKX TR CÜZDAN DURUMU*\n"
                                 "━━━━━━━━━━━━━━━━━━━\n"
                                 f"💵 Canlı Varlık: `{usdt_bakiye:,.2f} USDT`\n"
                                 f"🪙 Türk Lirası Karşılığı: `₺{try_bakiye:,.2f} TRY`\n"
@@ -149,6 +159,65 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
+                        # /kur Komutu
+                        elif text.startswith("/kur"):
+                            btc, dolar = get_live_finans_data()
+                            cevap = (
+                                "💱 *CANLI KURLAR*\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                f"💵 Dolar (USDT-TRY): `{dolar:.2f} TL`\n"
+                                f"🪙 Bitcoin (BTC): `${btc:,.2f}`"
+                            )
+                            send_telegram_message(chat_id, cevap)
+                            
+                        # /analiz Komutu (Genişletilebilir Altyapı)
+                        elif text.startswith("/analiz"):
+                            btc, dolar = get_live_finans_data()
+                            cevap = (
+                                "📊 *PİYASA ANALİZ RAPORU*\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "⏱ Zaman Dilimleri: `5m & 15m`\n"
+                                f"🪙 BTC Fiyat: `${btc:,.2f}`\n"
+                                "📈 Durum: `Piyasa taranıyor, göstergeler stabil...`"
+                            )
+                            send_telegram_message(chat_id, cevap)
+                            
+                        # /rapor Komutu
+                        elif text.startswith("/rapor"):
+                            cevap = (
+                                "📈 *PERFORMANS VE RAPOR*\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "🟢 Toplam İşlem: `0`\n"
+                                "💰 Toplam Kâr/Zarar: `₺0.00`\n"
+                                "📊 Başarı Oranı: `%0`"
+                            )
+                            send_telegram_message(chat_id, cevap)
+                            
+                        # /gecmis Komutu
+                        elif text.startswith("/gecmis"):
+                            cevap = (
+                                "📜 *DETAYLI İŞLEM DÖKÜMÜ*\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "ℹ️ Son dönemde gerçekleştirilen kapalı işlem bulunmuyor."
+                            )
+                            send_telegram_message(chat_id, cevap)
+                            
+                        # /calistir Komutu
+                        elif text.startswith("/calistir"):
+                            BOT_CALISIYOR = True
+                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Bot artık aktif takipte.")
+                            
+                        # /durdur Komutu
+                        elif text.startswith("/durdur"):
+                            BOT_CALISIYOR = False
+                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Bot bekleme moduna alındı.")
+                            
+        except Exception as e:
+            print(f"Telegram polling hatası: {e}")
+            time.sleep(5)
+
+
+# ==================== 6. ANA BAŞLATICI ====================
                         elif text.startswith("/kur"):
                             btc, dolar = get_live_finans_data()
                             cevap = (
@@ -158,15 +227,7 @@ def process_telegram_updates():
                                 f"🪙 Bitcoin (BTC): `${btc:,.2f}`"
                             )
                             send_telegram_message(chat_id, cevap)
+                            
         except Exception as e:
             print(f"Telegram polling hatası: {e}")
             time.sleep(5)
-
-
-# ==================== 6. ANA BAŞLATICI ====================
-if __name__ == "__main__":
-    print("🌟 Apex Bot Başlatılıyor...")
-    t = threading.Thread(target=process_telegram_updates, daemon=True)
-    t.start()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)

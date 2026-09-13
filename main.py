@@ -4,12 +4,15 @@ from telegram_bot import bot
 from web import app
 
 if __name__ == "__main__":
-    print("🌟 Apex Bot Sıfırdan ve Kararlı Başlatılıyor...")
+    print("🌟 Apex Bot Başlatılıyor...")
     
-    # Telegram Botunu arka planda dinlemeye başlıyoruz
+    # Telegram Botunu polling ile başlatıyoruz
     def run_tg():
-        print("🤖 Telegram Bot dinlemede...")
-        bot.infinity_polling(skip_pending=True)
+        try:
+            print("🤖 Telegram Bot dinlemede...")
+            bot.infinity_polling(timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"Telegram Bot Polling Hatası: {e}")
 
     t_tg = threading.Thread(target=run_tg, daemon=True)
     t_tg.start()

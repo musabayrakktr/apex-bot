@@ -1,19 +1,17 @@
-import random
 from market import get_okx_ticker
 
 def analyze_market_for_dip(symbol):
     """
-    Test modu: RSI eşiği 55'e yükseltildi. 
-    Mevcut piyasada (~48.5 RSI) hemen test alımı tetikler.
+    TEST MODU: RSI eşiği esnetildi, otomatik test alımı tetikler.
     """
     try:
         ticker = get_okx_ticker(symbol)
         current_price = ticker.get("price", 100.0)
         
-        # Test için RSI esnetildi
+        # Test için RSI esnek tutuldu (Hemen alım yapması için)
         rsi = 48.5
         
-        # RSI 55 altında olduğu için bot anında alım tetikleyecek
+        # RSI 55 altında olduğu için bot ANINDA alım tetikleyecek
         if rsi < 55:
             return True, current_price, rsi, "Test Alım Şartı Sağlandı"
             

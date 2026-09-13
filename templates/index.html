@@ -7,12 +7,13 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { background-color: #0b0e14; color: #e1e3e6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card-custom { background: #151a23; border: 1px solid #232a37; border-radius: 12px; }
+        body { background-color: #0d1117; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card-custom { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
         .text-neon-green { color: #00f2fe; }
-        .badge-dip { background-color: #00c853; color: #fff; }
-        .badge-wait { background-color: #2979ff; color: #fff; }
-        .badge-danger { background-color: #ff1744; color: #fff; }
+        .text-light-muted { color: #8b949e !important; font-weight: 500; }
+        .text-bright { color: #f0f6fc; }
+        .coin-btn { background: #21262d; border: 1px solid #30363d; color: #fff; font-weight: 600; padding: 5px 15px; border-radius: 6px; }
+        .coin-btn:hover, .coin-btn.active { background: #238636; border-color: #2ea043; color: #fff; }
     </style>
 </head>
 <body class="p-3">
@@ -21,7 +22,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4 p-3 card-custom">
             <div>
                 <h3 class="m-0 text-neon-green fw-bold">⚡ APEX TRADING TERMINAL</h3>
-                <small class="text-muted">OKX TR Otomatik Dip & Kâr Avcısı</small>
+                <small class="text-bright">OKX TR Otomatik Dip & Kâr Avcısı</small>
             </div>
             <div>
                 <button class="btn btn-success me-2" onclick="controlBot('start')">▶️ Botu Başlat</button>
@@ -33,67 +34,96 @@
         <div class="row g-3 mb-4">
             <div class="col-md-4">
                 <div class="card-custom p-3 text-center">
-                    <small class="text-muted">TOPLAM KASA VARLIĞI</small>
-                    <h2 class="text-success mt-1" id="usdt-val">20.72 USDT</h2>
-                    <span class="text-muted" id="try-val">₺1,006.58 TRY</span>
+                    <span class="text-light-muted d-block fw-bold">TOPLAM KASA VARLIĞI</span>
+                    <h2 class="text-success mt-1 fw-bold" id="usdt-val">20.72 USDT</h2>
+                    <span class="text-bright fw-semibold" id="try-val">₺1,006.58 TRY</span>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="card-custom p-3 text-center">
-                    <small class="text-muted">ANLIK DOLAR KURU (USDT/TRY)</small>
-                    <h2 class="text-warning mt-1" id="try-rate">₺48.58</h2>
-                    <span class="text-muted">OKX TR Canlı Veri</span>
+                    <span class="text-light-muted d-block fw-bold">ANLIK DOLAR KURU (USDT/TRY)</span>
+                    <h2 class="text-warning mt-1 fw-bold" id="try-rate">₺48.58</h2>
+                    <span class="text-bright fw-semibold">OKX TR Canlı Veri</span>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="card-custom p-3 text-center">
-                    <small class="text-muted">BOT DURUMU</small>
-                    <h2 class="text-info mt-1" id="bot-status">🟢 7/24 Aktif</h2>
-                    <span class="text-muted">Dip Taraması Çalışıyor</span>
+                    <span class="text-light-muted d-block fw-bold">BOT DURUMU</span>
+                    <h2 class="text-info mt-1 fw-bold" id="bot-status">🟢 7/24 Aktif</h2>
+                    <span class="text-bright fw-semibold">Dip Taraması Çalışıyor</span>
                 </div>
             </div>
         </div>
 
-        <!-- PİYASA RADAR KARTLARI -->
-        <h5 class="fw-bold mb-3">📡 Canlı Coin Dip Radarı</h5>
-        <div class="row g-3 mb-4" id="market-radar">
-            <!-- JS ile dolacak -->
-        </div>
-
-        <!-- GRAFİK VE TABLO -->
+        <!-- TRADINGVIEW SEÇİMLİ GRAFİK VE PORTFÖY -->
         <div class="row g-3 mb-4">
-            <div class="col-lg-7">
+            <div class="col-lg-8">
                 <div class="card-custom p-3">
-                    <h5 class="fw-bold mb-3">📈 TradingView Canlı Grafik</h5>
-                    <div id="tradingview_widget" style="height: 400px;"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h5 class="fw-bold m-0 text-bright">📈 TradingView Canlı Grafik</h5>
+                        <div class="btn-group" role="group">
+                            <button class="coin-btn active" onclick="changeChart('OKX:BTCUSDT', this)">BTC</button>
+                            <button class="coin-btn" onclick="changeChart('OKX:ETHUSDT', this)">ETH</button>
+                            <button class="coin-btn" onclick="changeChart('OKX:SOLUSDT', this)">SOL</button>
+                            <button class="coin-btn" onclick="changeChart('OKX:AVAXUSDT', this)">AVAX</button>
+                            <button class="coin-btn" onclick="changeChart('OKX:XRPUSDT', this)">XRP</button>
+                        </div>
+                    </div>
+                    <div id="tradingview_widget" style="height: 420px;"></div>
                 </div>
             </div>
-            <div class="col-lg-5">
+            <div class="col-lg-4">
                 <div class="card-custom p-3">
-                    <h5 class="fw-bold mb-3">📊 Portföy Büyüme Grafiği</h5>
-                    <canvas id="portfolioChart" style="max-height: 380px;"></canvas>
+                    <h5 class="fw-bold mb-3 text-bright">📊 Portföy Büyüme Grafiği</h5>
+                    <canvas id="portfolioChart" style="max-height: 400px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- YAPAY ZEKA TAHMİN BÖLÜMÜ -->
+        <div class="card-custom p-3 mb-4" style="border: 1px solid #7928CA;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-bright">🧠 APEX AI Predictive Analytics</h5>
+                <span class="badge bg-primary">Neural Model v2.4 Active</span>
+            </div>
+            
+            <div class="row g-3" id="ai-predictions-container">
+                <div class="col-md-6 col-lg-4">
+                    <div class="p-3 rounded" style="background: #1c152b; border: 1px solid #4c2885;">
+                        <div class="d-flex justify-content-between">
+                            <strong class="text-white">SOL/USDT</strong>
+                            <span class="text-success fw-bold">🚀 YÜKSELİŞ BEKLENTİSİ</span>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-bright d-block">AI Güven Skoru: <strong class="text-info">%91</strong></span>
+                            <span class="text-bright d-block">Tahmini AI Hedef: <strong class="text-warning">$104.20</strong></span>
+                        </div>
+                        <p class="small text-white mt-2 mb-0" style="font-size: 0.9rem;">
+                            💡 <em>RSI 34 seviyesinde. 15d mumlarda dip onaylandı, artış olasılığı yüksek.</em>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- İŞLEM TABLOSU -->
         <div class="card-custom p-3">
-            <h5 class="fw-bold mb-3">📜 Açık Pozisyonlar & İşlem Geçmişi</h5>
+            <h5 class="fw-bold mb-3 text-bright">📜 Açık Pozisyonlar & İşlem Geçmişi</h5>
             <div class="table-responsive">
                 <table class="table table-dark table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Parite</th>
-                            <th>İşlem Tipi</th>
-                            <th>Giriş Fiyatı</th>
-                            <th>Güncel Fiyat</th>
-                            <th>Kâr / Zarar (%)</th>
-                            <th>Durum</th>
+                            <th class="text-light-muted">Parite</th>
+                            <th class="text-light-muted">İşlem Tipi</th>
+                            <th class="text-light-muted">Giriş Fiyatı</th>
+                            <th class="text-light-muted">Güncel Fiyat</th>
+                            <th class="text-light-muted">Kâr / Zarar (%)</th>
+                            <th class="text-light-muted">Durum</th>
                         </tr>
                     </thead>
                     <tbody id="trade-history-table">
                         <tr>
-                            <td colspan="6" class="text-center text-muted">Aktif pozisyon bulunmuyor (Dip aranıyor)</td>
+                            <td colspan="6" class="text-center text-light-muted">Aktif pozisyon bulunmuyor (Dip aranıyor)</td>
                         </tr>
                     </tbody>
                 </table>
@@ -104,20 +134,33 @@
     <!-- TradingView Widget Script -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
-        new TradingView.widget({
-            "autosize": true,
-            "symbol": "OKX:BTCUSDT",
-            "interval": "5",
-            "timezone": "Etc/UTC",
-            "theme": "dark",
-            "style": "1",
-            "locale": "tr",
-            "container_id": "tradingview_widget"
-        });
+        let tvWidget;
+
+        function loadWidget(symbol) {
+            document.getElementById('tradingview_widget').innerHTML = '';
+            tvWidget = new TradingView.widget({
+                "autosize": true,
+                "symbol": symbol,
+                "interval": "5",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "tr",
+                "container_id": "tradingview_widget"
+            });
+        }
+
+        function changeChart(symbol, btnElement) {
+            document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+            loadWidget(symbol);
+        }
+
+        loadWidget("OKX:BTCUSDT");
 
         // Portföy Grafiği
         const ctx = document.getElementById('portfolioChart').getContext('2d');
-        const portfolioChart = new Chart(ctx, {
+        new Chart(ctx, {
             type: 'line',
             data: {
                 labels: ['10 Sep', '11 Sep', '12 Sep', '13 Sep'],
@@ -139,30 +182,3 @@
     </script>
 </body>
 </html>
-
-<!-- YAPAY ZEKA TAHMİN BÖLÜMÜ -->
-<div class="card-custom p-3 mb-4" style="border: 1px solid #7928CA;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold m-0" style="color: #7928CA;">🧠 APEX AI Predictive Analytics</h5>
-        <span class="badge bg-primary">Neural Model v2.4 Active</span>
-    </div>
-    
-    <div class="row g-3" id="ai-predictions-container">
-        <!-- JS ile Dolacak AI Kartı Örneği -->
-        <div class="col-md-6 col-lg-4">
-            <div class="p-3 rounded" style="background: #1c152b; border: 1px solid #4c2885;">
-                <div class="d-flex justify-content-between">
-                    <strong class="text-white">SOL/USDT</strong>
-                    <span class="text-success fw-bold">🚀 YÜKSELİŞ BEKLENTİSİ</span>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted d-block">AI Güven Skoru: <strong>%91</strong></small>
-                    <small class="text-muted d-block">Tahmini AI Hedef: <strong class="text-warning">$104.20</strong></small>
-                </div>
-                <p class="small text-light mt-2 mb-0" style="font-size: 0.85rem;">
-                    💡 <em>RSI 34 seviyesinde. 15d mumlarda dip onaylandı, artış olasılığı yüksek.</em>
-                </p>
-            </div>
-        </div>
-    </div>
-</div>

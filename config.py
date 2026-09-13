@@ -1,4 +1,4 @@
-TELEGRAM_TOKEN = "8978911397:AAFIfqHHWiOEOSvosxVn6taHt5mfJOeGNNk"
+TELEGRAM_TOKEN = "8978911397:AAEb6TH-PB4x3HQ3wU8i56clyU8GB_4pdaU"
 
 # OKX TR API Bilgilerin (Canlı bakiye çekebilmek için buraya kendi OKX API anahtarlarını yazmalısın)
 OKX_API_KEY = "BURAYA_API_KEY"

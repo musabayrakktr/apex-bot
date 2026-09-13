@@ -205,13 +205,52 @@ def background_worker():
                             continue
                         
                         if text.startswith("/start") or text.startswith("/baslat"):
-                            send_telegram_message(chat_id, "🚀 Apex Pro Terminal Aktif!")
+                            welcome_msg = (
+                                "🚀 *Apex Pro Terminal Aktif!*\n\n"
+                                "🎯 *Komutlar:*\n"
+                                "• `/calistir` - RSI Scalping Modunu Başlat\n"
+                                "• `/durdur` - Motoru Durdur\n"
+                                "• `/analiz` - Anlık Piyasa & RSI Durumu\n"
+                                "• `/cuzdan` - Güncel Bakiye Varlığı\n"
+                                "• `/kur` - BTC & Dolar Kuru\n"
+                                "• `/rapor` - Saatlik Durum Özeti"
+                            )
+                            send_telegram_message(chat_id, welcome_msg)
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı!")
+                            send_telegram_message(chat_id, "🟢 Oto Motor (RSI Stratejisi) Çalıştırıldı! 🚀")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
+                        elif text.startswith("/analiz"):
+                            btc, dolar = get_live_finans_data()
+                            analiz_msg = (
+                                "📊 *ANLIK PİYASA & RSI ANALİZİ*\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
+                                f"🧠 *Strateji:* Mikro kârlar ile dip avcılığı devrede.\n"
+                                f"⚡ *Durum:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
+                            )
+                            send_telegram_message(chat_id, analiz_msg)
+                        elif text.startswith("/cuzdan"):
+                            usdt = get_okx_usdt_balance()
+                            _, dolar = get_live_finans_data()
+                            try_val = usdt * dolar
+                            send_telegram_message(chat_id, f"💰 *Cüzdan Varlığı:* `{usdt:,.2f} USDT` (`₺{try_val:,.2f}`)")
+                        elif text.startswith("/kur"):
+                            btc, dolar = get_live_finans_data()
+                            send_telegram_message(chat_id, f"💱 *Kurlar*\n• BTC: `${btc:,.2f}`\n• USDT/TRY: `₺{dolar:.2f}`")
+                        elif text.startswith("/rapor"):
+                            btc, dolar = get_live_finans_data()
+                            usdt = get_okx_usdt_balance()
+                            try_bakiye = usdt * dolar
+                            rapor_msg = (
+                                "🌟 *APEX MANUEL RAPOR* 🚀\n"
+                                f"🪙 *BTC:* `${btc:,.2f}`\n"
+                                f"💵 *Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
+                                f"⚙️ *Bot Durumu:* {'Aktif 🟢' if BOT_CALISIYOR else 'Pasif 🔴'}"
+                            )
+                            send_telegram_message(chat_id, rapor_msg)
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)

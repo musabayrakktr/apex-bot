@@ -7,10 +7,10 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 import threading
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect, url_for, jsonify
 
 
-# ==================== 1. WEB SUNUCUSU VE KOMUTA MERKEZİ ====================
+# ==================== 1. WEB SUNUCUSU VE API ====================
 app = Flask(__name__)
 
 @app.route('/')
@@ -26,6 +26,16 @@ def home():
         usdt_bakiye=f"{usdt:,.2f}",
         try_bakiye=f"{try_val:,.2f}"
     )
+
+@app.route('/api/data')
+def api_data():
+    btc, dolar = get_live_finans_data()
+    usdt = get_okx_usdt_balance()
+    return jsonify({
+        "btc": f"{btc:,.2f}",
+        "dolar": f"{dolar:.2f}",
+        "usdt": f"{usdt:,.2f}"
+    })
 
 @app.route('/calistir_web')
 def calistir_web():
@@ -158,12 +168,12 @@ def get_smart_analysis():
     return btc, "⚖️ Stabil", "Veriler taranıyor...", "%0.00"
 
 
-# ==================== 6. TELEGRAM KOMUT DİNLEYİCİSİ VE SAATLİK BİLDİRİM ====================
+# ==================== 6. TELEGRAM KOMUT DİNLEYİCİSİ ====================
 def process_telegram_updates():
     global BOT_CALISIYOR
     last_update_id = 0
     son_saatlik_bildirim = 0
-    print("🤖 Telegram Bot dinlemede (Terminal Modu)...")
+    print("🤖 Telegram Bot dinlemede (Pro Terminal Modu)...")
     
     while True:
         try:
@@ -207,7 +217,7 @@ def process_telegram_updates():
                             welcome_text = (
                                 "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Web komuta merkezi ve terminal logları aktif!\n\n"
+                                "✅ Pro Komuta Merkezi ve AJAX terminal aktif!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
                                 "📊 `/analiz` - Akıllı 5m & 15m Piyasa Analizi\n"
                                 "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
@@ -268,7 +278,7 @@ def process_telegram_updates():
                             cevap = (
                                 "📜 *DETAYLI İŞLEM DÖKÜMÜ*\n"
                                 "━━━━━━━━━━━━━━━━━━━\n"
-                                "ℹ️ Son dönemde gerçekleştirilen kapalı işlem bulunmuyor."
+                                "ℹ️ Son dönemde gerçekleştirilen kapalı işlem bulunuyor."
                             )
                             send_telegram_message(chat_id, cevap)
                             
@@ -287,7 +297,7 @@ def process_telegram_updates():
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex Bot Komuta Merkezi Başlatılıyor...")
+    print("🌟 Apex Bot Pro Komuta Merkezi Başlatılıyor...")
     t = threading.Thread(target=process_telegram_updates, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

@@ -1,7 +1,5 @@
 <!DOCTYPE html>
 <html lang="tr">
-<head><!DOCTYPE html>
-<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -67,7 +65,6 @@
         .title { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
         .value { font-size: 20px; font-weight: 700; color: #f0f6fc; font-family: 'JetBrains Mono', monospace; }
 
-        /* Manuel İşlem Paneli */
         .manual-trade-box { background: rgba(33, 38, 45, 0.8); border: 1px solid #30363d; border-radius: 14px; padding: 20px; margin-bottom: 25px; }
         .trade-inputs { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
         .trade-input { background: #0b0e14; border: 1px solid #30363d; color: white; padding: 10px 15px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; flex: 1; min-width: 150px; }
@@ -91,7 +88,7 @@
         <!-- Başlık ve Saat -->
         <div class="header">
             <div>
-                <h1>🚀 [Apex Trading Bot](https://apex-bot-r4a4.onrender.com/) <span style="font-size: 11px; background: rgba(88,166,255,0.15); border: 1px solid rgba(88,166,255,0.3); padding: 4px 10px; border-radius: 8px; color: #58a6ff;">v6.0 Pro</span></h1>
+                <h1>🚀 Apex Trading Bot <span style="font-size: 11px; background: rgba(88,166,255,0.15); border: 1px solid rgba(88,166,255,0.3); padding: 4px 10px; border-radius: 8px; color: #58a6ff;">v6.0 Pro</span></h1>
                 <div class="subtitle">Yapay Zeka Destekli Otonom Kripto Terminali & Komuta Merkezi</div>
             </div>
             <div class="datetime-box">
@@ -118,7 +115,7 @@
             </div>
         </div>
 
-        <!-- Finansal Kartlar (AJAX Güncellenir) -->
+        <!-- Finansal Kartlar -->
         <div class="grid">
             <div class="card green">
                 <div class="title">Bitcoin (BTC) Fiyatı</div>
@@ -200,7 +197,6 @@
     </div>
 
     <script>
-        // İstanbul Saati
         function updateIstanbulTime() {
             const now = new Date();
             const optionsTime = { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
@@ -212,7 +208,6 @@
         setInterval(updateIstanbulTime, 1000);
         updateIstanbulTime();
 
-        // AJAX Canlı Veri Yenileme (Sayfa yenilenmeden arka planda günceller)
         function fetchLiveData() {
             fetch('/api/data')
                 .then(response => response.json())
@@ -223,227 +218,7 @@
                 })
                 .catch(err => console.log('AJAX veri çekme hatası:', err));
         }
-        setInterval(fetchLiveData, 5000); // Her 5 saniyede bir günceller
-    </script>
-</body>
-</html>
-
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apex Trading Bot - Komuta Merkezi v5.1 Pro</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-
-        /* O üstteki beyaz boşluğu ve elastik kaydırmayı tamamen kaldıran düzeltme */
-        html, body { 
-            background-color: #0b0e14 !important; 
-            overscroll-behavior-y: none;
-            margin: 0; 
-            padding: 0;
-        }
-
-        body { 
-            background: radial-gradient(circle at 50% -20%, #1a233a 0%, #0b0e14 70%);
-            background-attachment: fixed;
-            color: #c9d1d9; 
-            font-family: 'Inter', sans-serif; 
-            padding: 20px; 
-        }
-
-        .container { 
-            max-width: 1100px; 
-            margin: auto; 
-            background: rgba(22, 27, 34, 0.85); 
-            backdrop-filter: blur(12px);
-            padding: 30px; 
-            border-radius: 20px; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.7); 
-            border: 1px solid rgba(88, 166, 255, 0.2); 
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 20px; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
-        h1 { color: #58a6ff; font-size: 24px; margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 700; text-shadow: 0 0 15px rgba(88,166,255,0.4); }
-        .subtitle { color: #8b949e; font-size: 13px; font-weight: 300; }
-        
-        .datetime-box { background: rgba(33, 38, 45, 0.9); padding: 10px 18px; border-radius: 10px; border: 1px solid #30363d; text-align: right; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
-        #live-clock { font-size: 18px; font-weight: bold; color: #3fb950; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 8px rgba(63,185,80,0.3); }
-        #live-date { font-size: 12px; color: #8b949e; font-family: 'JetBrains Mono', monospace; }
-        
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; background: rgba(33, 38, 45, 0.7); padding: 15px 20px; border-radius: 14px; border: 1px solid #30363d; }
-        .status-badge { display: inline-block; padding: 7px 18px; border-radius: 20px; font-weight: bold; font-size: 13px; letter-spacing: 0.5px; }
-        .active { background: rgba(46, 160, 67, 0.2); color: #3fb950; border: 1px solid #2ea043; animation: glowPulse 2s infinite; }
-        .stopped { background: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid #f85149; }
-        
-        @keyframes glowPulse { 
-            0% { box-shadow: 0 0 5px rgba(46,160,67,0.2); } 
-            50% { box-shadow: 0 0 20px rgba(46,160,67,0.6); } 
-            100% { box-shadow: 0 0 5px rgba(46,160,67,0.2); } 
-        }
-
-        .btn-group { display: flex; gap: 10px; }
-        .btn { padding: 9px 18px; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; border: none; transition: all 0.3s ease; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .btn:hover { transform: translateY(-2px); filter: brightness(1.15); }
-        .btn-green { background: linear-gradient(135deg, #2ea043 0%, #238636 100%); color: white; }
-        .btn-red { background: linear-gradient(135deg, #da3633 0%, #b62324 100%); color: white; }
-
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 25px; }
-        .card { background: rgba(33, 38, 45, 0.8); padding: 20px; border-radius: 14px; border-left: 4px solid #58a6ff; transition: all 0.3s ease; border-top: 1px solid rgba(255,255,255,0.03); }
-        .card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); border-color: rgba(88,166,255,0.3); }
-        .card.green { border-left-color: #2ea043; }
-        .card.orange { border-left-color: #db6d28; }
-        .title { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px; }
-        .value { font-size: 20px; font-weight: 700; color: #f0f6fc; font-family: 'JetBrains Mono', monospace; }
-
-        .chart-container { background: rgba(33, 38, 45, 0.8); border-radius: 14px; padding: 18px; margin-bottom: 25px; border: 1px solid #30363d; box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
-        .section-title { font-size: 15px; color: #58a6ff; margin-bottom: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-
-        .log-container { background: #0b0e14; border: 1px solid #30363d; border-radius: 12px; padding: 18px; margin-bottom: 25px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; max-height: 190px; overflow-y: auto; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8); }
-        .log-item { margin-bottom: 8px; border-bottom: 1px solid rgba(48, 54, 61, 0.5); padding-bottom: 6px; color: #8b949e; animation: slideIn 0.4s ease-out; }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-        .log-item span { color: #3fb950; font-weight: bold; }
-
-        .ai-panel { background: linear-gradient(135deg, rgba(31,36,45,0.9) 0%, rgba(22,27,34,0.95) 100%); border: 1px solid rgba(56,139,253,0.4); border-radius: 14px; padding: 22px; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
-        .ai-header { color: #58a6ff; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-size: 15px; }
-        .ai-content { color: #c9d1d9; font-size: 14px; line-height: 1.6; background: #0b0e14; padding: 16px; border-radius: 10px; border-left: 3px solid #58a6ff; font-family: 'Inter', sans-serif; }
-        .strategy-placeholder { color: #8b949e; font-style: italic; margin-top: 10px; font-size: 13px; }
-
-        .footer { text-align: center; font-size: 12px; color: #8b949e; margin-top: 30px; border-top: 1px solid #30363d; padding-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Başlık ve Saat -->
-        <div class="header">
-            <div>
-                <h1>🚀 [Apex Trading Bot](https://apex-bot-r4a4.onrender.com/) <span style="font-size: 11px; background: rgba(88,166,255,0.15); border: 1px solid rgba(88,166,255,0.3); padding: 4px 10px; border-radius: 8px; color: #58a6ff;">v5.1 Pro Ultra</span></h1>
-                <div class="subtitle">Yapay Zeka Destekli Otonom Kripto Terminali & Komuta Merkezi</div>
-            </div>
-            <div class="datetime-box">
-                <div id="live-clock">00:00:00</div>
-                <div id="live-date">Yükleniyor...</div>
-            </div>
-        </div>
-
-        <!-- Kumanda Paneli -->
-        <div class="top-bar">
-            <div>
-                {% if bot_durum %}
-                    <span class="status-badge active">🟢 OTO MOTOR AKTİF</span>
-                {% else %}
-                    <span class="status-badge stopped">🔴 OTO MOTOR BEKLEMEDE</span>
-                {% endif %}
-            </div>
-            <div class="btn-group">
-                <a href="/calistir_web" class="btn btn-green">▶️ Başlat</a>
-                <a href="/durdur_web" class="btn btn-red">⏹️ Durdur</a>
-            </div>
-            <div style="font-size: 12px; color: #8b949e; font-family: 'JetBrains Mono', monospace;">
-                📅 Kuruluş: <strong>13 Eylül 2026</strong>
-            </div>
-        </div>
-
-        <!-- Finansal Kartlar -->
-        <div class="grid">
-            <div class="card green">
-                <div class="title">Bitcoin (BTC) Fiyatı</div>
-                <div class="value">${{ btc_fiyat }}</div>
-            </div>
-            <div class="card">
-                <div class="title">USDT / TRY Kuru</div>
-                <div class="value">₺{{ dolar_kur }}</div>
-            </div>
-            <div class="card orange">
-                <div class="title">OKX TR Cüzdan (USDT)</div>
-                <div class="value">{{ usdt_bakiye }} USDT</div>
-            </div>
-            <div class="card green">
-                <div class="title">Tahmini Türk Lirası</div>
-                <div class="value">₺{{ try_bakiye }}</div>
-            </div>
-        </div>
-
-        <!-- Takip Edilen Coinler -->
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-            <div class="card" style="border-left-color: #f7931a;">
-                <div class="title">🪙 Takipteki Varlık</div>
-                <div class="value" style="font-size: 14px;">BTC / USDT (Aktif)</div>
-            </div>
-            <div class="card" style="border-left-color: #627eea;">
-                <div class="title">🪙 İkinci Varlık</div>
-                <div class="value" style="font-size: 14px;">ETH / USDT (Hazır)</div>
-            </div>
-            <div class="card" style="border-left-color: #26a69a;">
-                <div class="title">🪙 Üçüncü Varlık</div>
-                <div class="value" style="font-size: 14px;">SOL / USDT (Hazır)</div>
-            </div>
-        </div>
-
-        <!-- TradingView Canlı Grafik -->
-        <div class="chart-container">
-            <div class="section-title">📊 Canlı Piyasa Grafiği (TradingView Terminal)</div>
-            <div class="tradingview-widget-container" style="height:420px;width:100%">
-                <div id="tradingview_chart" style="height:100%;width:100%"></div>
-                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                <script type="text/javascript">
-                new TradingView.widget({
-                    "width": "100%",
-                    "height": "420",
-                    "symbol": "OKX:BTCUSDT",
-                    "interval": "15",
-                    "timezone": "Europe/Istanbul",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "tr",
-                    "toolbar_bg": "#f1f3f6",
-                    "enable_publishing": false,
-                    "hide_side_toolbar": false,
-                    "allow_symbol_change": true,
-                    "container_id": "tradingview_chart"
-                });
-                </script>
-            </div>
-        </div>
-
-        <!-- Canlı Terminal İşlem Logları -->
-        <div class="section-title">💻 Canlı Sistem Akışı ve İşlem Logları</div>
-        <div class="log-container" id="log-box">
-            <div class="log-item"><span>[19:00]</span> Sistem başarıyla başlatıldı ve bulut sunucuya bağlandı.</div>
-            <div class="log-item"><span>[19:05]</span> OKX TR cüzdan bakiyeleri güvenli şekilde senkronize edildi.</div>
-            <div class="log-item"><span>[19:10]</span> 5m & 15m mum verileri taranıyor, piyasa stabil.</div>
-        </div>
-
-        <!-- Yapay Zeka Strateji ve Analiz Paneli -->
-        <div class="ai-panel">
-            <div class="ai-header">🧠 Yapay Zeka Karar ve Strateji Motoru</div>
-            <div class="ai-content">
-                <strong>Anlık Analiz Sinyali:</strong> 5m & 15m mum verileri taranıyor. Kısa vadeli trend yönü ve momentum göstergeleri işleniyor.<br>
-                <div class="strategy-placeholder">⚡ Özel Alım/Satım Strateji Modülü: Henüz kodlanmadı (Boş bırakıldı - Strateji eklendiğinde aktifleşecek).</div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <div>Apex Bot v5.1 Pro Ultra &bull; Cloud Server Aktif</div>
-            <div>Istanbul Timezone (UTC+3) Destekli</div>
-        </div>
-    </div>
-
-    <script>
-        function updateIstanbulTime() {
-            const now = new Date();
-            const optionsTime = { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-            const optionsDate = { timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric' };
-            
-            document.getElementById('live-clock').innerText = new Intl.DateTimeFormat('tr-TR', optionsTime).format(now);
-            document.getElementById('live-date').innerText = "Tarih: " + new Intl.DateTimeFormat('tr-TR', optionsDate).format(now);
-        }
-        setInterval(updateIstanbulTime, 1000);
-        updateIstanbulTime();
+        setInterval(fetchLiveData, 5000);
     </script>
 </body>
 </html>

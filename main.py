@@ -1,69 +1,52 @@
-import os
 import time
-import json
-import urllib.request
-import threading
-from web import app
+from threading import Thread
+from market import get_live_market_data
 from strategy import analyze_market_for_dip
-from trader import execute_buy_order
-from telegram_bot import set_telegram_commands, handle_message
-from config import TELEGRAM_TOKEN
+from telegram_bot import send_telegram, start_telegram_bot
+from web import app
 
-SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "AVAX/USDT", "XRP/USDT"]
-
-def telegram_polling_loop():
-    """Telegram gelen mesajları 7/24 dinleyen döngü"""
-    offset = 0
-    print("🤖 Telegram Dinleyici Başlatıldı...")
+def trading_loop():
+    print("🚀 APEX Trading Loop Başlatıldı...")
+    # Sunucu kalkar kalkmaz Telegram'a test mesajı salla
     try:
-        set_telegram_commands()
+        send_telegram("⚡ APEX BOT SİSTEMİ AKTİF! Dip Taraması Başlatıldı.")
     except Exception as e:
-        print(f"Set commands hatası: {e}")
+        print(f"Telegram Başlangıç Hatası: {e}")
 
     while True:
         try:
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={offset}&timeout=5"
-            req = urllib.request.Request(url)
-            res = urllib.request.urlopen(req, timeout=10)
-            data = json.loads(res.read().decode('utf-8'))
-
-            if data.get("ok") and data.get("result"):
-                for update in data["result"]:
-                    offset = update["update_id"] + 1
-                    if "message" in update and "text" in update["message"]:
-                        text = update["message"]["text"]
-                        chat_id = update["message"]["chat"]["id"]
-                        handle_message(text, chat_id)
+            symbols = ["SOL/USDT", "BTC/USDT", "ETH/USDT"]
+            for symbol in symbols:
+                buy_signal, price, rsi, reason = analyze_market_for_dip(symbol)
+                
+                if buy_signal:
+                    msg = (
+                        f"🚀 *ALIM İŞLEMİ GERÇEKLEŞTİ!*\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"🪙 *Parite:* `{symbol}`\n"
+                        f"💰 *Fiyat:* `${price}`\n"
+                        f"📊 *RSI:* `{rsi:.1f}`\n"
+                        f"📝 *Sebep:* {reason}\n\n"
+                        f"🤖 *OKX TR Otomatik Emir Verildi.*"
+                    )
+                    print(f" Telegram'a gönderiliyor: {symbol}")
+                    send_telegram(msg)
+                    
         except Exception as e:
-            time.sleep(2)
-        time.sleep(1)
+            print(f"Döngü hatası: {e}")
+            
+        time.sleep(15) # 15 saniyede bir tara ve at
 
-def auto_trading_loop():
-    """Piyasayı sürekli tarayan ve alım tetikleyen otomatik motor"""
-    time.sleep(5)
-    print("📈 Oto Alım-Satım Motoru Başlatıldı...")
-    while True:
-        try:
-            for symbol in SYMBOLS:
-                should_buy, price, rsi, reason = analyze_market_for_dip(symbol)
-                if should_buy:
-                    print(f"🎯 Dip Yakalandı ({symbol})! Alım yapılıyor...")
-                    execute_buy_order(symbol, price, rsi)
-                    time.sleep(20)  # Üst üste alım yapmaması için bekleme
-                    break
-        except Exception as e:
-            print(f"Oto alım hatası: {e}")
-        time.sleep(10)
+if __name__ == "__main__":
+    # Telegram Botunu Dinlemeye Başla
+    t_bot = Thread(target=start_telegram_bot)
+    t_bot.daemon = True
+    t_bot.start()
 
-if __name__ == '__main__':
-    # 1. Telegram Mesaj Dinleyici Thread
-    t1 = threading.Thread(target=telegram_polling_loop, daemon=True)
-    t1.start()
+    # Alım Döngüsünü Başlat
+    t_trade = Thread(target=trading_loop)
+    t_trade.daemon = True
+    t_trade.start()
 
-    # 2. Oto Alım-Satım Motoru Thread
-    t2 = threading.Thread(target=auto_trading_loop, daemon=True)
-    t2.start()
-
-    # 3. Web Sunucusu (Main Process)
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    # Web Sunucusunu Başlat
+    app.run(host="0.0.0.0", port=10000)

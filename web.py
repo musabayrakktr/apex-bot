@@ -18,7 +18,7 @@ def api_status():
         fiyat = float(item.get("fiyat", 100.0))
         rsi = float(item.get("rsi", 45.0))
         
-        # RSI Mantığına Dayalı Gerçek AI Kararı
+        # RSI ve Fiyat Mantığına Dayalı Canlı AI Kararı
         if rsi < 40:
             signal = "🚀 YÜKSELİŞ BEKLENTİSİ"
             confidence = round(85 + (40 - rsi) * 0.5, 1)
@@ -28,7 +28,7 @@ def api_status():
             signal = "🔻 DÜŞÜŞ / DÜZELTME"
             confidence = round(75 + (rsi - 65) * 0.4, 1)
             target = f"${round(fiyat * 0.96, 2)}"
-            reason = f"RSI {rsi:.1f} aşırı alım bölgesinde. Kar satışı riski yüksek."
+            reason = f"RSI {rsi:.1f} aşırı alım bölgesinde. Kâr satışı riski yüksek."
         else:
             signal = "⚡ NÖTR / AKÜMÜLASYON"
             confidence = 65.0

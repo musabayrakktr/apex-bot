@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 import threading
 from flask import Flask, render_template, redirect, url_for, jsonify
 
-# ==================== 1. WEB SUNUCUSU VE API ====================
 app = Flask(__name__)
 
 AKTIF_ISLEMLER = [
@@ -60,8 +59,6 @@ def durdur_web():
     send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
     return redirect(url_for('home'))
 
-
-# ==================== 2. AYARLAR VE GÜVENLİK ====================
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 8982017587))
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
@@ -75,8 +72,6 @@ STRATEJI_AYARLARI = {
     "min_islem_usdt": 1.0
 }
 
-
-# ==================== 3. TELEGRAM MESAJ GÖNDERME ====================
 def send_telegram_message(chat_id, text):
     if not TELEGRAM_TOKEN:
         return
@@ -94,8 +89,6 @@ def send_telegram_message(chat_id, text):
     except Exception as e:
         print(f"Telegram mesaj gönderme hatası: {e}")
 
-
-# ==================== 4. OKX BAKIYE VE FİNANS ====================
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 21.93
@@ -126,7 +119,6 @@ def get_okx_usdt_balance():
         print(f"Bakiye okuma hatası: {e}")
     return 21.93
 
-
 def get_live_finans_data():
     try:
         url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
@@ -149,8 +141,6 @@ def get_live_finans_data():
         print(f"Kur hatası: {e}")
         return 77331.0, 48.60
 
-
-# ==================== 5. RSI VE YAPAY ZEKA STRATEJİ MOTORU ====================
 def run_ai_scalping_strategy():
     coin_listesi = STRATEJI_AYARLARI["takip_edilen_coinler"]
     for coin in coin_listesi:
@@ -169,8 +159,6 @@ def run_ai_scalping_strategy():
         except Exception as e:
             print(f"RSI analiz hatası ({coin}): {e}")
 
-
-# ==================== 6. ARKA PLAN DÖNGÜSÜ VE TELEGRAM DİNLEYİCİ ====================
 def background_worker():
     global BOT_CALISIYOR
     last_update_id = 0
@@ -228,8 +216,6 @@ def background_worker():
             print(f"Hata: {e}")
             time.sleep(5)
 
-
-# ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()

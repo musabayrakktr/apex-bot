@@ -1,6 +1,0 @@
-flask
-gunicorn
-urllib3
-requests
-ccxt
-pandas

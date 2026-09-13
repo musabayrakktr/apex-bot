@@ -1,50 +1,26 @@
-import json
-import urllib.request
-from config import TARGET_COINS
+import os
+from flask import Flask, render_template, jsonify
+from trader import get_account_balance
 
-def get_coin_ticker(symbol):
-    """OKX API formatına uygun parite dönüşümü yapar (Örn: BTCUSDT -> BTC-USDT)."""
-    clean_symbol = symbol.replace("-", "")
-    if clean_symbol.endswith("USDT"):
-        coin = clean_symbol.replace("USDT", "")
-        formatted_inst = f"{coin}-USDT"
-    else:
-        formatted_inst = symbol
+app = Flask(__name__)
 
-    urls = [
-        f"https://tr.okx.com/api/v5/market/ticker?instId={formatted_inst}",
-        f"https://www.okx.com/api/v5/market/ticker?instId={formatted_inst}"
-    ]
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/status')
+def api_status():
+    bakiye_data = get_account_balance()
+    toplam_usdt = bakiye_data.get("usdt", 20.72)
+    try_rate = bakiye_data.get("try_rate", 34.20)
+    toplam_try = toplam_usdt * try_rate
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    return jsonify({
+        "usdt": f"{toplam_usdt:,.2f}",
+        "try": f"{toplam_try:,.2f}",
+        "try_rate": f"{try_rate:.2f}"
+    })
 
-    for url in urls:
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4) as res:
-                data = json.loads(res.read().decode())
-                if data.get("data") and len(data["data"]) > 0:
-                    return float(data["data"][0]["last"])
-        except Exception:
-            continue
-            
-    return 0.0
-
-def get_live_market_data():
-    """Tüm hedef coinlerin anlık fiyat ve dip analiz durumlarını toplar."""
-    coin_raporlari = []
-    
-    for coin in TARGET_COINS:
-        fiyat = get_coin_ticker(coin)
-        fiyat_str = f"${fiyat:,.2f}" if fiyat > 0 else "Servis Yanıt Vermedi"
-        
-        coin_raporlari.append({
-            "parite": coin,
-            "fiyat": fiyat_str,
-            "rsi": "48.5 (Normal)",
-            "durum": "Akümülasyon / Dip Taranıyor"
-        })
-        
-    return coin_raporlari
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)

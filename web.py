@@ -15,15 +15,20 @@ def api_status():
     for item in veriler:
         parite = item.get("parite", "SOL/USDT")
         
-        # Fiyattaki '$' ve ',' karakterlerini temizle ki ValueError vermesin
+        # Fiyattaki '$' ve ',' karakterlerini temizle
         raw_price = str(item.get("fiyat", "100.0")).replace("$", "").replace(",", "").strip()
         try:
             fiyat = float(raw_price)
         except ValueError:
             fiyat = 100.0
             
-        rsi = float(item.get("rsi", 45.0))
-        
+        # RSI değerinden ' (Normal)' gibi metinleri ayıkla ve sadece sayıyı al
+        raw_rsi = str(item.get("rsi", "45.0")).split()[0].replace(",", ".").strip()
+        try:
+            rsi = float(raw_rsi)
+        except ValueError:
+            rsi = 45.0
+            
         if rsi < 40:
             signal = "🚀 YÜKSELİŞ BEKLENTİSİ"
             confidence = round(85 + (40 - rsi) * 0.5, 1)

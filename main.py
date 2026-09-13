@@ -41,7 +41,7 @@ def api_data():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Scalping Stratejisi ile Oto Motor Çalıştırıldı! 🚀")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Yapay Zekalı Scalping Motoru Aktif! 🚀")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -61,11 +61,10 @@ OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
 
 BOT_CALISIYOR = False
 
-# Scalping Strateji Parametreleri
+# Scalping ve Yapay Zeka Strateji Parametreleri
 STRATEJI_AYARLARI = {
-    "hedef_dusus_yuzde": 2.0,  # %2 düşerse al (dip avcısı)
-    "hedef_kar_yuzde": 1.5,    # %1.5 kâr gördüğü an sat
-    "takip_edilen_coinler": ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+    "takip_edilen_coinler": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
+    "min_islem_usdt": 1.0
 }
 
 
@@ -91,7 +90,7 @@ def send_telegram_message(chat_id, text):
 # ==================== 4. OKX BAKIYE VE FİNANS ====================
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 21.93  # Test veya yedek bakiye
+        return 21.93  # Yedek bakiye
     try:
         request_path = "/api/v5/account/balance"
         timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
@@ -143,11 +142,11 @@ def get_live_finans_data():
         return 77331.0, 48.60
 
 
-# ==================== 5. AKILLI SCALPING STRATEJİ MOTORU ====================
-def run_scalping_strategy():
+# ==================== 5. YAPAY ZEKA DESTEKLİ SCALPING MOTORU ====================
+def run_ai_scalping_strategy():
     """
-    Mikro kâr stratejisi:
-    Toplam bütçeyi coin sayısına böler, minimum işlem sınırlarını gözeterek dip avlar.
+    Yapay Zeka Destekli Mikro Kâr ve Trend Analiz Stratejisi:
+    Coin başına bütçeyi böler, mum grafiklerini inceleyerek düşüşün devam edip etmediğini tartar.
     """
     total_usdt = get_okx_usdt_balance()
     coin_listesi = STRATEJI_AYARLARI["takip_edilen_coinler"]
@@ -155,30 +154,38 @@ def run_scalping_strategy():
     if len(coin_listesi) == 0:
         return
 
-    # Her coine düşen bütçe payı
     butce_basina_bakiye = total_usdt / len(coin_listesi)
-    
-    # OKX minimum işlem sınırı kontrolü (Örn: Her işlem en az 1.0 USDT olmalı)
-    MIN_ISLEM_USDT = 1.0 
+    min_islem = STRATEJI_AYARLARI["min_islem_usdt"]
 
-    print(f"📊 [Strateji Taraması] Toplam Bütçe: {total_usdt:.2f} USDT | Coin Başına Düşen: {butce_basina_bakiye:.2f} USDT")
-    
-    if butce_basina_bakiye < MIN_ISLEM_USDT:
-        print(f"⚠️ Uyarı: Coin başına düşen bütçe ({butce_basina_bakiye:.2f} USDT), minimum işlem limitinin altında!")
+    if butce_basina_bakiye < min_islem:
+        print(f"⚠️ Uyarı: Coin başına düşen bütçe ({butce_basina_bakiye:.2f} USDT) minimum limitin altında!")
         return
 
     for coin in coin_listesi:
         try:
-            url = f"https://www.okx.com/api/v5/market/ticker?instId={coin}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            # 5 dakikalık mum verilerini çek (Yapay zeka analizi için)
+            url_candle = f"https://www.okx.com/api/v5/market/candles?instId={coin}&bar=5m&limit=5"
+            req = urllib.request.Request(url_candle, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 res = json.loads(resp.read().decode())
-                fiyat = float(res['data'][0]['last'])
+                candles = res.get('data', [])
                 
-                # Minimum bütçe sınırına göre alınabilecek tutar hesabı ve dip izleme
-                print(f"🪙 {coin} Fiyat: {fiyat} | Ayrılan Bütçe: {butce_basina_bakiye:.2f} USDT - Dip bekleniyor...")
+                if candles:
+                    son_fiyat = float(candles[0][4])
+                    eski_fiyat = float(candles[-1][4])
+                    fark_yuzde = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
+                    
+                    # Yapay Zeka Karar Mekanizması
+                    if fark_yuzde < -0.3:
+                        ai_karar = "📉 Düşüş Devam Ediyor: Acele etme, kademeli dip bekleniyor."
+                    elif fark_yuzde > 0.3:
+                        ai_karar = "📈 Topparlanma Başladı: Mikro kâr hedefi için uygun bölge."
+                    else:
+                        ai_karar = "⚖️ Konsolidasyon: Fiyat yatay seyirli, takipteyiz."
+                        
+                    print(f"🤖 [AI Strateji] {coin} | Değişim: {fark_yuzde:+.2f}% | Durum: {ai_karar}")
         except Exception as e:
-            print(f"Strateji tarama hatası ({coin}): {e}")
+            print(f"Yapay zeka analiz hatası ({coin}): {e}")
 
 
 # ==================== 6. ARKA PLAN DÖNGÜSÜ VE TELEGRAM DİNLEYİCİ ====================
@@ -186,33 +193,32 @@ def background_worker():
     global BOT_CALISIYOR
     last_update_id = 0
     son_bildirim_zaman = 0
-    print("🤖 Apex Scalping Bot Arka Plan Döngüsü Başlatıldı...")
+    print("🤖 Apex AI Scalping Bot Arka Plan Döngüsü Başlatıldı...")
     
     while True:
         try:
             simdiki_zaman = time.time()
             
-            # Oto motor aktifse stratejiyi ve saatlik raporu çalıştır
             if BOT_CALISIYOR:
-                run_scalping_strategy()
+                run_ai_scalping_strategy()
                 
-                # Saatlik bildirim (3600 saniye)
+                # Saatlik bildirim
                 if simdiki_zaman - son_bildirim_zaman > 3600:
                     btc, dolar = get_live_finans_data()
                     usdt = get_okx_usdt_balance()
                     try_bakiye = usdt * dolar
                     rapor = (
-                        "⏰ *SCALPING BOT - SAATLİK RAPOR* 🟢\n"
+                        "⏰ *AI SCALPING BOT - SAATLİK RAPOR* 🟢\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "✅ Oto motor ve dip avcısı aktif!\n\n"
+                        "✅ Yapay zeka motoru aktif ve grafikleri tarıyor!\n\n"
                         f"🪙 BTC Fiyat: `${btc:,.2f}`\n"
                         f"💵 Cüzdan: `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
-                        "🎯 Hedef: Mikro kârlar ile yüksek hacim takibi."
+                        "🧠 AI Durum: Optimum işlem fırsatları izleniyor."
                     )
                     send_telegram_message(ADMIN_ID, rapor)
                     son_bildirim_zaman = simdiki_zaman
 
-            # Telegram komutlarını dinle
+            # Telegram komut dinleyicisi
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=35) as response:
@@ -233,9 +239,9 @@ def background_worker():
                         
                         if text.startswith("/start") or text.startswith("/baslat"):
                             welcome_text = (
-                                "🚀 *APEX TRADING BOT - SCALPING PANELİ* 🌟\n"
+                                "🚀 *APEX TRADING BOT - AI PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Mikro kâr stratejisi yüklendi!\n\n"
+                                "✅ Yapay zeka tabanlı scalping motoru devrede!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Durumu\n"
                                 "📊 `/analiz` - Akıllı Piyasa Analizi\n"
                                 "🟢 `/calistir` - Oto Motoru Çalıştır\n"
@@ -251,7 +257,7 @@ def background_worker():
                             
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 *Oto Motor (Scalping) Çalıştırıldı!* Dip avı başladı.")
+                            send_telegram_message(chat_id, "🟢 *Yapay Zeka Motoru Çalıştırıldı!* Grafik analizi başladı.")
                             
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
@@ -264,7 +270,7 @@ def background_worker():
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex Bot Sunucusu Başlatılıyor...")
+    print("🌟 Apex AI Bot Sunucusu Başlatılıyor...")
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

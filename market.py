@@ -1,56 +1,59 @@
-import telebot
-from config import TELEGRAM_TOKEN, ADMIN_ID
-from market import get_okx_usdt_balance, get_live_finans_data
+import requests
+import hmac
+import hashlib
+import base64
+import time
+from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
-def is_admin(message):
-    """Sadece senin ID'nin işlem yapabilmesini sağlar."""
-    return message.from_user.id == ADMIN_ID
-
-@bot.message_handler(commands=['start', 'baslat'])
-def send_welcome(message):
-    if not is_admin(message):
-        bot.send_message(message.chat.id, "⛔ Bu botu kullanma yetkin yok!")
-        return
-        
-    welcome_text = (
-        "🚀 *APEX TRADING BOT - CANLI SÜRÜM* 🌟\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "✅ Güvenlik doğrulandı! Canlı bakiye sistemi aktif.\n\n"
-        "💼 `/cuzdan` - OKX Canlı USDT ve TRY Bakiye\n"
-        "💱 `/kur` - Canlı Dolar ve BTC Kurları"
-    )
-    bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['cuzdan'])
-def send_wallet(message):
-    if not is_admin(message):
-        bot.send_message(message.chat.id, "⛔ Bu komutu kullanmaya yetkin yok!")
-        return
-        
+def get_okx_usdt_balance():
+    """OKX hesabından canlı USDT bakiyesini çeker."""
+    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        return 0.0
     try:
-        # Canlı USDT bakiyesini ve güncel kurları çekiyoruz
-        usdt_bakiye = get_okx_usdt_balance()
-        btc, dolar = get_live_finans_data()
+        endpoint = "/api/v5/account/balance?ccy=USDT"
+        url = f"https://www.okx.com{endpoint}"
         
-        # USDT'yi anlık kur ile TL'ye çeviriyoruz
-        try_bakiye = usdt_bakiye * dolar
+        timestamp = str(int(time.time() * 1000))
+        message = timestamp + "GET" + endpoint
+        signature = hmac.new(
+            OKX_SECRET_KEY.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        sig_b64 = base64.b64encode(signature).decode('utf-8')
         
-        cevap = (
-            "💼 *OKX CANLI CÜZDAN DURUMU*\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            f"💵 Canlı Varlık: `${usdt_bakiye:,.2f} USDT`\n"
-            f"🪙 Türk Lirası: `₺{try_bakiye:,.2f} TRY`\n"
-            f"📊 Anlık Dolar Kuru: `{dolar:.2f} TL`"
-        )
-        bot.send_message(message.chat.id, cevap, parse_mode="Markdown")
+        headers = {
+            "OK-ACCESS-KEY": OKX_API_KEY,
+            "OK-ACCESS-SIGN": sig_b64,
+            "OK-ACCESS-TIMESTAMP": timestamp,
+            "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
+            "Content-Type": "application/json"
+        }
+        res = requests.get(url, headers=headers, timeout=5).json()
+        if res.get("code") == "0":
+            details = res['data'][0]['details']
+            for d in details:
+                if d['ccy'] == 'USDT':
+                    return float(d['availBal'])
+        return 0.0
     except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ Cüzdan okunurken hata oluştu: {e}")
+        print(f"Bakiye çekme hatası: {e}")
+        return 0.0
 
-@bot.message_handler(commands=['kur'])
-def send_rates(message):
-    if not is_admin(message):
-        return
-    btc, dolar = get_live_finans_data()
-    bot.send_message(message.chat.id, f"💱 *CANLI KURLAR*\n━━━━━━━━━━━━━━━━━━━\n💵 Dolar/TL: `{dolar:.2f} TL`\n🪙 Bitcoin (BTC): `${btc:,.2f}`", parse_mode="Markdown")
+def get_live_finans_data():
+    try:
+        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        response = requests.get(url, timeout=5).json()
+        btc_fiyat = float(response['data'][0]['last'])
+        
+        usdt_try_url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        try:
+            res_try = requests.get(usdt_try_url, timeout=3).json()
+            dolar_kur = float(res_try['data'][0]['last'])
+        except:
+            dolar_kur = 48.58
+            
+        return btc_fiyat, dolar_kur
+    except Exception as e:
+        print(f"Kur hatası: {e}")
+        return 91400.0, 48.58

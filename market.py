@@ -6,12 +6,13 @@ import time
 from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
 def get_okx_usdt_balance():
-    """OKX hesabından canlı USDT bakiyesini çeker."""
+    """OKX TR hesabından canlı USDT bakiyesini çeker."""
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 0.0
     try:
+        # OKX TR resmi API domain adresi
         endpoint = "/api/v5/account/balance?ccy=USDT"
-        url = f"https://www.okx.com{endpoint}"
+        url = f"https://www.okxtr.com{endpoint}"
         
         timestamp = str(int(time.time() * 1000))
         message = timestamp + "GET" + endpoint
@@ -42,11 +43,11 @@ def get_okx_usdt_balance():
 
 def get_live_finans_data():
     try:
-        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        url = "https://www.okxtr.com/api/v5/market/ticker?instId=BTC-USDT"
         response = requests.get(url, timeout=5).json()
         btc_fiyat = float(response['data'][0]['last'])
         
-        usdt_try_url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        usdt_try_url = "https://www.okxtr.com/api/v5/market/ticker?instId=USDT-TRY"
         try:
             res_try = requests.get(usdt_try_url, timeout=3).json()
             dolar_kur = float(res_try['data'][0]['last'])

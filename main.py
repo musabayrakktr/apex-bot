@@ -7,15 +7,25 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 import threading
-from flask import Flask
+from flask import Flask, render_template
 
 
-# ==================== 1. WEB SUNUCUSU (Render Canlı Tutma) ====================
+# ==================== 1. WEB SUNUCUSU VE CANLI PANEL ====================
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Apex Bot Modüler ve Canlı Sistem Aktif! 🚀"
+    btc, dolar = get_live_finans_data()
+    usdt = get_okx_usdt_balance()
+    try_val = usdt * dolar
+    return render_template(
+        'index.html',
+        bot_durum=BOT_CALISIYOR,
+        btc_fiyat=f"{btc:,.2f}",
+        dolar_kur=f"{dolar:.2f}",
+        usdt_bakiye=f"{usdt:,.2f}",
+        try_bakiye=f"{try_val:,.2f}"
+    )
 
 
 # ==================== 2. AYARLAR VE GÜVENLİK ====================
@@ -51,7 +61,6 @@ def send_telegram_message(chat_id, text):
 # ==================== 4. OKX BAKIYE VE FİNANS ====================
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        print("⚠️ OKX API anahtarları eksik!")
         return 0.0
     try:
         request_path = "/api/v5/account/balance"
@@ -141,7 +150,7 @@ def process_telegram_updates():
     global BOT_CALISIYOR
     last_update_id = 0
     son_saatlik_bildirim = 0
-    print("🤖 Telegram Bot dinlemede (Saatlik Bildirim & Analiz Modu)...")
+    print("🤖 Telegram Bot dinlemede (Templates Web Panel Modu)...")
     
     while True:
         try:
@@ -179,15 +188,14 @@ def process_telegram_updates():
                         text = message.get("text", "").strip().lower()
                         
                         if user_id != ADMIN_ID:
-                            send_telegram_message(chat_id, "⛔ Bu botu kullanma yetkin yok!")
+                            send_telegram_message(chat_id, "⛔ Botu kullanma yetkin yok!")
                             continue
                         
-                        # /start ve /baslat Komutları
                         if text.startswith("/start") or text.startswith("/baslat"):
                             welcome_text = (
                                 "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Sistem güncellendi ve saatlik bildirimler aktif!\n\n"
+                                "✅ Templates web panel ve saatlik bildirimler aktif!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
                                 "📊 `/analiz` - Akıllı 5m & 15m Piyasa Analizi\n"
                                 "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
@@ -198,7 +206,6 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, welcome_text)
                             
-                        # /cuzdan Komutu
                         elif text.startswith("/cuzdan"):
                             usdt_bakiye = get_okx_usdt_balance()
                             btc, dolar = get_live_finans_data()
@@ -212,7 +219,6 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /kur Komutu
                         elif text.startswith("/kur"):
                             btc, dolar = get_live_finans_data()
                             cevap = (
@@ -223,7 +229,6 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /analiz Komutu
                         elif text.startswith("/analiz"):
                             fiyat, trend, tavsiye, oran = get_smart_analysis()
                             cevap = (
@@ -237,7 +242,6 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /rapor Komutu
                         elif text.startswith("/rapor"):
                             cevap = (
                                 "📈 *PERFORMANS VE RAPOR*\n"
@@ -248,7 +252,6 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /gecmis Komutu
                         elif text.startswith("/gecmis"):
                             cevap = (
                                 "📜 *DETAYLI İŞLEM DÖKÜMÜ*\n"
@@ -257,15 +260,13 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /calistir Komutu
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Saatlik bildirimler ve aktif takip başlatıldı.")
+                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Web panel ve saatlik bildirimler aktif.")
                             
-                        # /durdur Komutu
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
-                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Saatlik bildirimler bekleme moduna alındı.")
+                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Web panel bekleme moduna alındı.")
                             
         except Exception as e:
             print(f"Telegram polling hatası (Hata koruması aktif, yeniden deneniyor): {e}")
@@ -274,7 +275,7 @@ def process_telegram_updates():
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex Bot Başlatılıyor...")
+    print("🌟 Apex Bot & Web Panel Başlatılıyor...")
     t = threading.Thread(target=process_telegram_updates, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

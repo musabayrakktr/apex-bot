@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APEX Trading Dashboard</title>
+    <title>APEX AI Terminal & RSI Radar</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #0d1117; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card-custom { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
         .text-neon-green { color: #00f2fe; }
-        .text-light-muted { color: #8b949e !important; font-weight: 500; }
         .text-bright { color: #f0f6fc; }
         .coin-btn { background: #21262d; border: 1px solid #30363d; color: #fff; font-weight: 600; padding: 5px 15px; border-radius: 6px; }
         .coin-btn:hover, .coin-btn.active { background: #238636; border-color: #2ea043; color: #fff; }
-        .ai-card { background: #1c152b; border: 1px solid #7928CA; border-radius: 10px; }
     </style>
 </head>
 <body class="p-3">
@@ -22,186 +20,98 @@
         <!-- HEADER -->
         <div class="d-flex justify-content-between align-items-center mb-4 p-3 card-custom">
             <div>
-                <h3 class="m-0 text-neon-green fw-bold">⚡ APEX TRADING TERMINAL</h3>
-                <small class="text-bright">OKX TR Otomatik Dip & Kâr Avcısı</small>
+                <h3 class="m-0 text-neon-green fw-bold">⚡ APEX RSI KESİŞİM TERMINALİ</h3>
+                <small class="text-bright">Canlı RSI & Hedef Alım Çizgisi Takibi</small>
             </div>
             <div>
-                <button class="btn btn-success me-2" onclick="controlBot('start')">▶️ Botu Başlat</button>
-                <button class="btn btn-danger" onclick="controlBot('stop')">🛑 Botu Durdur</button>
+                <span class="badge bg-success p-2 fs-6" id="cross-status">🟢 Kesişim Aranıyor</span>
             </div>
         </div>
 
-        <!-- METRİKLER -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-4">
-                <div class="card-custom p-3 text-center">
-                    <span class="text-light-muted d-block fw-bold">TOPLAM KASA VARLIĞI</span>
-                    <h2 class="text-success mt-1 fw-bold" id="usdt-val">20.72 USDT</h2>
-                    <span class="text-bright fw-semibold" id="try-val">₺1,006.58 TRY</span>
+        <!-- GRAFİK SEÇİMİ VE RSI KESİŞİM CANLI CANVAS -->
+        <div class="card-custom p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div>
+                    <h5 class="fw-bold m-0 text-bright" id="chart-title">📊 SOL/USDT - Canlı RSI & Alım Eşiği Kesişimi</h5>
+                    <small class="text-muted">Yeşil Çizgi: Hedef Alım RSI | Mavi Çizgi: Anlık RSI</small>
+                </div>
+                <div class="btn-group" role="group">
+                    <button class="coin-btn active" onclick="selectCoin('SOL/USDT')">SOL</button>
+                    <button class="coin-btn" onclick="selectCoin('BTC/USDT')">BTC</button>
+                    <button class="coin-btn" onclick="selectCoin('ETH/USDT')">ETH</button>
+                    <button class="coin-btn" onclick="selectCoin('AVAX/USDT')">AVAX</button>
+                    <button class="coin-btn" onclick="selectCoin('XRP/USDT')">XRP</button>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card-custom p-3 text-center">
-                    <span class="text-light-muted d-block fw-bold">ANLIK DOLAR KURU (USDT/TRY)</span>
-                    <h2 class="text-warning mt-1 fw-bold" id="try-rate">₺48.58</h2>
-                    <span class="text-bright fw-semibold">OKX TR Canlı Veri</span>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card-custom p-3 text-center">
-                    <span class="text-light-muted d-block fw-bold">BOT DURUMU</span>
-                    <h2 class="text-info mt-1 fw-bold" id="bot-status">🟢 7/24 Aktif</h2>
-                    <span class="text-bright fw-semibold">Dip Taraması Çalışıyor</span>
-                </div>
-            </div>
-        </div>
 
-        <!-- YAPAY ZEKA TAHMİN BÖLÜMÜ -->
-        <div class="card-custom p-3 mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold m-0 text-bright">🧠 APEX AI Deep Learning Predictions</h5>
-                <span class="badge" style="background-color: #7928CA;">Neural Engine Active</span>
-            </div>
-            <div class="row g-3" id="ai-predictions-container">
-                <div class="col-12 text-center text-light-muted">Yapay Zeka tahmin verileri yükleniyor...</div>
-            </div>
-        </div>
-
-        <!-- TRADINGVIEW SEÇİMLİ GRAFİK VE PORTFÖY -->
-        <div class="row g-3 mb-4">
-            <div class="col-lg-8">
-                <div class="card-custom p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h5 class="fw-bold m-0 text-bright">📈 TradingView Canlı Grafik</h5>
-                        <div class="btn-group" role="group">
-                            <button class="coin-btn active" onclick="changeChart('OKX:BTCUSDT', this)">BTC</button>
-                            <button class="coin-btn" onclick="changeChart('OKX:ETHUSDT', this)">ETH</button>
-                            <button class="coin-btn" onclick="changeChart('OKX:SOLUSDT', this)">SOL</button>
-                            <button class="coin-btn" onclick="changeChart('OKX:AVAXUSDT', this)">AVAX</button>
-                            <button class="coin-btn" onclick="changeChart('OKX:XRPUSDT', this)">XRP</button>
-                        </div>
-                    </div>
-                    <div id="tradingview_widget" style="height: 420px;"></div>
-                </div>
-            </div>
-            <div class="col-lg-4">
-                <div class="card-custom p-3">
-                    <h5 class="fw-bold mb-3 text-bright">📊 Portföy Büyüme Grafiği</h5>
-                    <canvas id="portfolioChart" style="max-height: 400px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- İŞLEM TABLOSU -->
-        <div class="card-custom p-3">
-            <h5 class="fw-bold mb-3 text-bright">📜 Açık Pozisyonlar & İşlem Geçmişi</h5>
-            <div class="table-responsive">
-                <table class="table table-dark table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th class="text-light-muted">Parite</th>
-                            <th class="text-light-muted">İşlem Tipi</th>
-                            <th class="text-light-muted">Giriş Fiyatı</th>
-                            <th class="text-light-muted">Güncel Fiyat</th>
-                            <th class="text-light-muted">Kâr / Zarar (%)</th>
-                            <th class="text-light-muted">Durum</th>
-                        </tr>
-                    </thead>
-                    <tbody id="trade-history-table">
-                        <tr>
-                            <td colspan="6" class="text-center text-light-muted">Aktif pozisyon bulunmuyor (Dip aranıyor)</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- CANLI RSI VE KESİŞİM GRAFİĞİ -->
+            <div style="height: 380px; position: relative;">
+                <canvas id="rsiIntersectionChart"></canvas>
             </div>
         </div>
     </div>
 
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
-        function loadWidget(symbol) {
-            document.getElementById('tradingview_widget').innerHTML = '';
-            new TradingView.widget({
-                "autosize": true,
-                "symbol": symbol,
-                "interval": "5",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "tr",
-                "container_id": "tradingview_widget"
-            });
-        }
+        let currentSymbol = "SOL/USDT";
+        let targetRsiLevel = 35.0; // Hedef Alım Eşiği
 
-        function changeChart(symbol, btnElement) {
-            document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
-            if(btnElement) btnElement.classList.add('active');
-            loadWidget(symbol);
-        }
+        // Zaman Etiketleri ve RSI Canlı Veri Dizisi
+        const timeLabels = ['03:30', '03:31', '03:32', '03:33', '03:34', '03:35', '03:36', '03:37'];
+        const liveRsiData = [48.2, 45.0, 42.1, 39.5, 36.8, 34.2, 33.0, 32.5]; 
+        const targetRsiData = Array(timeLabels.length).fill(targetRsiLevel);
 
-        loadWidget("OKX:BTCUSDT");
-
-        // Portföy Grafiği
-        const ctx = document.getElementById('portfolioChart').getContext('2d');
-        new Chart(ctx, {
+        const ctx = document.getElementById('rsiIntersectionChart').getContext('2d');
+        const rsiChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['10 Sep', '11 Sep', '12 Sep', '13 Sep'],
-                datasets: [{
-                    label: 'Kasa (USDT)',
-                    data: [20.0, 20.2, 20.5, 20.72],
-                    borderColor: '#00f2fe',
-                    backgroundColor: 'rgba(0, 242, 254, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
+                labels: timeLabels,
+                datasets: [
+                    {
+                        label: 'Anlık Canlı RSI',
+                        data: liveRsiData,
+                        borderColor: '#00f2fe',
+                        backgroundColor: 'rgba(0, 242, 254, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: false
+                    },
+                    {
+                        label: 'Hedef Alım Seviyesi (RSI ' + targetRsiLevel + ')',
+                        data: targetRsiData,
+                        borderColor: '#00c853',
+                        borderWidth: 2,
+                        borderDash: [6, 6], // Kesikli alım çizgisi
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
             },
-            options: { responsive: true, plugins: { legend: { display: false } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        min: 10,
+                        max: 90,
+                        grid: { color: '#21262d' },
+                        ticks: { color: '#8b949e' }
+                    },
+                    x: {
+                        grid: { color: '#21262d' },
+                        ticks: { color: '#8b949e' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f0f6fc' } }
+                }
+            }
         });
 
-        // Verileri API'den periyodik çekme
-        async function fetchDashboardData() {
-            try {
-                const res = await fetch('/api/status');
-                const data = await res.json();
-                
-                if(data.usdt) document.getElementById('usdt-val').innerText = data.usdt + ' USDT';
-                if(data.try) document.getElementById('try-val').innerText = '₺' + data.try + ' TRY';
-                if(data.try_rate) document.getElementById('try-rate').innerText = '₺' + data.try_rate;
-
-                if(data.ai) {
-                    let aiHtml = '';
-                    data.ai.forEach(item => {
-                        aiHtml += `
-                            <div class="col-md-6 col-lg-4">
-                                <div class="p-3 ai-card">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <strong class="text-white fw-bold">${item.parite}</strong>
-                                        <span class="fw-bold small" style="color:#00f2fe;">${item.signal}</span>
-                                    </div>
-                                    <div class="mt-2">
-                                        <span class="text-bright d-block small">Güven Skoru: <strong class="text-info">%${item.confidence}</strong></span>
-                                        <span class="text-bright d-block small">AI Hedef Fiyat: <strong class="text-warning">${item.target}</strong></span>
-                                    </div>
-                                    <p class="small text-light-muted mt-2 mb-0" style="font-size: 0.82rem;">
-                                        💡 ${item.reason}
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    document.getElementById('ai-predictions-container').innerHTML = aiHtml;
-                }
-            } catch(e) {
-                console.error("API hatası:", e);
-            }
-        }
-
-        fetchDashboardData();
-        setInterval(fetchDashboardData, 5000);
-
-        function controlBot(action) {
-            alert(action === 'start' ? '▶️ Bot Başlatıldı!' : '🛑 Bot Durduruldu!');
+        function selectCoin(symbol) {
+            currentSymbol = symbol;
+            document.getElementById('chart-title').innerText = `📊 ${symbol} - Canlı RSI & Alım Eşiği Kesişimi`;
+            document.querySelectorAll('.coin-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
         }
     </script>
 </body>

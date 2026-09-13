@@ -15,14 +15,14 @@ def api_status():
     for item in veriler:
         parite = item.get("parite", "SOL/USDT")
         
-        # Fiyattaki '$' ve ',' karakterlerini temizle
+        # Fiyatı güvenli dönüştür
         raw_price = str(item.get("fiyat", "100.0")).replace("$", "").replace(",", "").strip()
         try:
             fiyat = float(raw_price)
         except ValueError:
             fiyat = 100.0
             
-        # RSI değerinden ' (Normal)' gibi metinleri ayıkla ve sadece sayıyı al
+        # RSI metninden ('48.5 (Normal)') sadece sayıyı ayıkla
         raw_rsi = str(item.get("rsi", "45.0")).split()[0].replace(",", ".").strip()
         try:
             rsi = float(raw_rsi)

@@ -14,7 +14,6 @@ def api_status():
     usdt_val = 20.72
     try_val = round(usdt_val * dolar, 2)
     
-    # index.html dosyasının beklediği yapay zeka tahmin kartları verisi
     ai_data = [
         {
             "parite": "SOL/USDT", 

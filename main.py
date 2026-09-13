@@ -9,9 +9,8 @@ from datetime import datetime, timezone
 import threading
 from flask import Flask, render_template, redirect, url_for, jsonify
 
-
 # ==================== 1. WEB SUNUCUSU VE API ====================
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__)
 
 AKTIF_ISLEMLER = [
     {"coin": "BTC-USDT", "giris": "77,350.00", "hedef": "78,500.00", "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}

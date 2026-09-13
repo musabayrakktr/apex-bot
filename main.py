@@ -20,13 +20,26 @@ def home():
 def send_welcome(message):
     global trading_active
     trading_active = True
-    bot.reply_to(message, "🚀 *APEX BOT ÇALIŞTIRILDI VE AKTİF!*\nOto al-sat motoru devrede. Sol menüden komutları kullanabilirsin kanka!", parse_mode="Markdown")
+    welcome_text = (
+        "🚀 *APEX TRADING BOT'A HOŞ GELDİN KANKA!* 🌟\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🤖 Otonom al-sat motorumuz aktif ve piyasaları tarıyor.\n"
+        "📊 Aşağıdaki menüden veya komutları kullanarak anlık raporları alabilirsin:\n\n"
+        "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
+        "📊 `/analiz` - 5m & 15m Piyasa Analiz Raporu\n"
+        "📋 `/rapor` - Geçmiş İşlemler ve Performans\n"
+        "💱 `/kur` - Canlı Dolar, Altın ve BTC Kurları\n"
+        "📜 `/gecmis` - Detaylı İşlem Dökümü\n"
+        "🛑 `/stop` - Oto Motoru Durdur\n"
+        "🟢 `/baslat` - Oto Motoru Çalıştır"
+    )
+    bot.reply_to(message, welcome_text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['stop'])
 def stop_motor(message):
     global trading_active
     trading_active = False
-    bot.reply_to(message, "🛑 *OTO MOTOR DURDURULDU!*\nAl-sat döngüsü durduruldu kanka.", parse_mode="Markdown")
+    bot.reply_to(message, "🛑 *OTO MOTOR DURDURULDU!*\nAl-sat döngüsü geçici olarak durduruldu kanka.", parse_mode="Markdown")
 
 @bot.message_handler(commands=['cuzdan'])
 def send_wallet(message):
@@ -64,7 +77,6 @@ def trading_loop():
         import time
         time.sleep(30)
 
-# Telegram botunu arka planda sonsuz döngüde dinletiyoruz
 def run_telegram():
     print("🤖 Telegram Bot dinlemeye başladı...")
     bot.infinity_polling(skip_pending=True)
@@ -72,14 +84,11 @@ def run_telegram():
 if __name__ == "__main__":
     print("🌟 Apex Bot Başlatılıyor...")
 
-    # Arka plan ticaret motoru
     t_trade = threading.Thread(target=trading_loop, daemon=True)
     t_trade.start()
 
-    # Arka plan Telegram bot dinleyicisi
     t_tg = threading.Thread(target=run_telegram, daemon=True)
     t_tg.start()
 
-    # Flask Web Sunucusu (Render'ın uyumaması için ana akış)
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port, debug=False)

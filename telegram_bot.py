@@ -2,7 +2,7 @@ import os
 import requests
 from market import get_live_market_data
 
-TELEGRAM_TOKEN = "7953215033:AAH7d2n2JvQ3qJ69G8r3W5wL4QzY7x8Z8"
+TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaqldgcwte_fl34M"
 
 def send_telegram(chat_id, message):
     try:

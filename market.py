@@ -1,37 +1,51 @@
 import requests
+import hmac
+import hashlib
+import base64
+import time
+from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
-def get_live_market_data():
-    data = []
+def get_okx_usdt_balance():
+    """OKX TR hesabından canlı USDT bakiyesini çeker. API yoksa varsayılan veya 0 döner."""
+    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        # API girilmediyse örnek canlı takip için standart değer veya test bakiye
+        return 20.72 
+    
     try:
-        # OKX üzerinden BTC, SOL ve ETH verilerini ve RSI simülasyon/gerçek değerini çekiyoruz
-        url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
-        res_btc = requests.get(url_btc, timeout=3).json()
-        btc_price = float(res_btc['data'][0]['last'])
+        # OKX API V5 Balance Endpoint
+        endpoint = "/api/v5/account/balance?ccy=USDT"
+        url = f"https://www.okx.com{endpoint}"
         
-        url_sol = "https://www.okx.com/api/v5/market/ticker?instId=SOL-USDT"
-        res_sol = requests.get(url_sol, timeout=3).json()
-        sol_price = float(res_sol['data'][0]['last'])
-
-        url_eth = "https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT"
-        res_eth = requests.get(url_eth, timeout=3).json()
-        eth_price = float(res_eth['data'][0]['last'])
-
-        # Stratejinin okuyabileceği formatta parite, fiyat ve RSI döndürüyoruz
-        data = [
-            {"parite": "BTC/USDT", "fiyat": str(btc_price), "rsi": "45.5"},
-            {"parite": "SOL/USDT", "fiyat": str(sol_price), "rsi": "38.2"}, # <40 dip bölgesi
-            {"parite": "ETH/USDT", "fiyat": str(eth_price), "rsi": "52.0"}
-        ]
+        timestamp = str(int(time.time() * 1000))
+        message = timestamp + "GET" + endpoint
+        signature = hmac.new(
+            OKX_SECRET_KEY.encode('utf-8'),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        sig_b64 = base64.b64encode(signature).decode('utf-8')
+        
+        headers = {
+            "OK-ACCESS-KEY": OKX_API_KEY,
+            "OK-ACCESS-SIGN": sig_b64,
+            "OK-ACCESS-TIMESTAMP": timestamp,
+            "OK-ACCESS-PASSPHRASE": OKX_PASSPHRASE,
+            "Content-Type": "application/json"
+        }
+        
+        res = requests.get(url, headers=headers, timeout=5).json()
+        if res.get("code") == "0":
+            details = res['data'][0]['details']
+            for d in details:
+                if d['ccy'] == 'USDT':
+                    return float(d['availBal']) # Kullanılabilir bakiye
+        return 0.0
     except Exception as e:
-        print(f"Piyasa veri hatası: {e}")
-        data = [
-            {"parite": "BTC/USDT", "fiyat": "91400.0", "rsi": "45.0"},
-            {"parite": "SOL/USDT", "fiyat": "135.0", "rsi": "39.0"},
-            {"parite": "ETH/USDT", "fiyat": "3450.0", "rsi": "50.0"}
-        ]
-    return data
+        print(f"OKX Bakiye çekme hatası: {e}")
+        return 20.72
 
 def get_live_finans_data():
+    """OKX üzerinden canlı BTC fiyatı ve USDT/TRY kurunu çeker."""
     try:
         url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         response = requests.get(url, timeout=5).json()
@@ -42,9 +56,9 @@ def get_live_finans_data():
             res_try = requests.get(usdt_try_url, timeout=3).json()
             dolar_kur = float(res_try['data'][0]['last'])
         except:
-            dolar_kur = 34.50
+            dolar_kur = 48.58  # Yedek kur
             
         return btc_fiyat, dolar_kur
     except Exception as e:
         print(f"Kur çekme hatası: {e}")
-        return 91400.0, 34.50
+        return 91400.0, 48.58

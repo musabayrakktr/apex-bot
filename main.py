@@ -107,7 +107,6 @@ def get_live_finans_data():
 # ==================== 5. AKILLI ANALİZ MOTORU ====================
 def get_smart_analysis():
     try:
-        # OKX Mum Verileri (5m ve 15m) çekme altyapısı
         url = "https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=5m&limit=10"
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -115,7 +114,6 @@ def get_smart_analysis():
             candles = res.get('data', [])
             
         if candles:
-            # Son mum kapanış fiyatı ile ilk mum kapanış fiyatını kıyaslayarak kısa vadeli trend üretelim
             son_fiyat = float(candles[0][4])
             eski_fiyat = float(candles[-1][4])
             fark_yuzde = ((son_fiyat - eski_fiyat) / eski_fiyat) * 100
@@ -138,14 +136,34 @@ def get_smart_analysis():
     return btc, "⚖️ Stabil", "Veriler taranıyor...", "%0.00"
 
 
-# ==================== 6. TELEGRAM KOMUT DİNLEYİCİSİ ====================
+# ==================== 6. TELEGRAM KOMUT DİNLEYİCİSİ VE SAATLİK BİLDİRİM ====================
 def process_telegram_updates():
     global BOT_CALISIYOR
     last_update_id = 0
-    print("🤖 Telegram Bot dinlemede (Akıllı Analiz Modu)...")
+    son_saatlik_bildirim = 0
+    print("🤖 Telegram Bot dinlemede (Saatlik Bildirim & Analiz Modu)...")
     
     while True:
         try:
+            simdiki_zaman = time.time()
+            
+            # SAATLİK OTOMATİK BİLDİRİM (Her 1 saatte bir)
+            if BOT_CALISIYOR and (simdiki_zaman - son_saatlik_bildirim > 3600):
+                btc, dolar = get_live_finans_data()
+                usdt_bakiye = get_okx_usdt_balance()
+                try_bakiye = usdt_bakiye * dolar
+                
+                saatlik_mesaj = (
+                    "⏰ *SAATLİK DURUM VE ÇALIŞMA RAPORU* 🟢\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "✅ Bot aktif ve oto motor çalışıyor!\n\n"
+                    f"🪙 BTC Fiyat: `${btc:,.2f}`\n"
+                    f"💵 Cüzdan: `{usdt_bakiye:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
+                    "📈 Sistem kar/zarar takibine devam ediyor."
+                )
+                send_telegram_message(ADMIN_ID, saatlik_mesaj)
+                son_saatlik_bildirim = simdiki_zaman
+
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=35) as response:
@@ -169,7 +187,7 @@ def process_telegram_updates():
                             welcome_text = (
                                 "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Sistem aktif ve emre amade!\n\n"
+                                "✅ Sistem güncellendi ve saatlik bildirimler aktif!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
                                 "📊 `/analiz` - Akıllı 5m & 15m Piyasa Analizi\n"
                                 "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
@@ -205,7 +223,7 @@ def process_telegram_updates():
                             )
                             send_telegram_message(chat_id, cevap)
                             
-                        # /analiz Komutu (Akıllı Yapay Zeka / Trend Altyapısı)
+                        # /analiz Komutu
                         elif text.startswith("/analiz"):
                             fiyat, trend, tavsiye, oran = get_smart_analysis()
                             cevap = (
@@ -242,12 +260,12 @@ def process_telegram_updates():
                         # /calistir Komutu
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Bot hata korumalı aktif takipte.")
+                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Saatlik bildirimler ve aktif takip başlatıldı.")
                             
                         # /durdur Komutu
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
-                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Bot bekleme moduna alındı.")
+                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Saatlik bildirimler bekleme moduna alındı.")
                             
         except Exception as e:
             print(f"Telegram polling hatası (Hata koruması aktif, yeniden deneniyor): {e}")

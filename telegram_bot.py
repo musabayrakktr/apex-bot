@@ -32,9 +32,8 @@ def start_telegram_bot():
                     offset = update["update_id"] + 1
                     message = update.get("message", {})
                     text = message.get("text", "").strip().lower()
-                    chat_id = message.get("chat", {}).get("id")
                     
-                    if not text or str(chat_id) != str(TELEGRAM_CHAT_ID):
+                    if not text:
                         continue
                         
                     # 1. CÜZDAN RAPORU

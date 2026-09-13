@@ -14,6 +14,7 @@
         .text-bright { color: #f0f6fc; }
         .coin-btn { background: #21262d; border: 1px solid #30363d; color: #fff; font-weight: 600; padding: 5px 15px; border-radius: 6px; }
         .coin-btn:hover, .coin-btn.active { background: #238636; border-color: #2ea043; color: #fff; }
+        .ai-card { background: #1c152b; border: 1px solid #7928CA; border-radius: 10px; }
     </style>
 </head>
 <body class="p-3">
@@ -55,6 +56,17 @@
             </div>
         </div>
 
+        <!-- YAPAY ZEKA TAHMİN BÖLÜMÜ -->
+        <div class="card-custom p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold m-0 text-bright">🧠 APEX AI Deep Learning Predictions</h5>
+                <span class="badge" style="background-color: #7928CA;">Neural Engine Active</span>
+            </div>
+            <div class="row g-3" id="ai-predictions-container">
+                <div class="col-12 text-center text-light-muted">Yapay Zeka tahmin verileri yükleniyor...</div>
+            </div>
+        </div>
+
         <!-- TRADINGVIEW SEÇİMLİ GRAFİK VE PORTFÖY -->
         <div class="row g-3 mb-4">
             <div class="col-lg-8">
@@ -76,32 +88,6 @@
                 <div class="card-custom p-3">
                     <h5 class="fw-bold mb-3 text-bright">📊 Portföy Büyüme Grafiği</h5>
                     <canvas id="portfolioChart" style="max-height: 400px;"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- YAPAY ZEKA TAHMİN BÖLÜMÜ -->
-        <div class="card-custom p-3 mb-4" style="border: 1px solid #7928CA;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold m-0 text-bright">🧠 APEX AI Predictive Analytics</h5>
-                <span class="badge bg-primary">Neural Model v2.4 Active</span>
-            </div>
-            
-            <div class="row g-3" id="ai-predictions-container">
-                <div class="col-md-6 col-lg-4">
-                    <div class="p-3 rounded" style="background: #1c152b; border: 1px solid #4c2885;">
-                        <div class="d-flex justify-content-between">
-                            <strong class="text-white">SOL/USDT</strong>
-                            <span class="text-success fw-bold">🚀 YÜKSELİŞ BEKLENTİSİ</span>
-                        </div>
-                        <div class="mt-2">
-                            <span class="text-bright d-block">AI Güven Skoru: <strong class="text-info">%91</strong></span>
-                            <span class="text-bright d-block">Tahmini AI Hedef: <strong class="text-warning">$104.20</strong></span>
-                        </div>
-                        <p class="small text-white mt-2 mb-0" style="font-size: 0.9rem;">
-                            💡 <em>RSI 34 seviyesinde. 15d mumlarda dip onaylandı, artış olasılığı yüksek.</em>
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -131,14 +117,11 @@
         </div>
     </div>
 
-    <!-- TradingView Widget Script -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
-        let tvWidget;
-
         function loadWidget(symbol) {
             document.getElementById('tradingview_widget').innerHTML = '';
-            tvWidget = new TradingView.widget({
+            new TradingView.widget({
                 "autosize": true,
                 "symbol": symbol,
                 "interval": "5",
@@ -175,6 +158,47 @@
             },
             options: { responsive: true, plugins: { legend: { display: false } } }
         });
+
+        // Verileri API'den periyodik çekme
+        async function fetchDashboardData() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                if(data.usdt) document.getElementById('usdt-val').innerText = data.usdt + ' USDT';
+                if(data.try) document.getElementById('try-val').innerText = '₺' + data.try + ' TRY';
+                if(data.try_rate) document.getElementById('try-rate').innerText = '₺' + data.try_rate;
+
+                if(data.ai) {
+                    let aiHtml = '';
+                    data.ai.forEach(item => {
+                        aiHtml += `
+                            <div class="col-md-6 col-lg-4">
+                                <div class="p-3 ai-card">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong class="text-white fw-bold">${item.parite}</strong>
+                                        <span class="fw-bold small" style="color:#00f2fe;">${item.signal}</span>
+                                    </div>
+                                    <div class="mt-2">
+                                        <span class="text-bright d-block small">Güven Skoru: <strong class="text-info">%${item.confidence}</strong></span>
+                                        <span class="text-bright d-block small">AI Hedef Fiyat: <strong class="text-warning">${item.target}</strong></span>
+                                    </div>
+                                    <p class="small text-light-muted mt-2 mb-0" style="font-size: 0.82rem;">
+                                        💡 ${item.reason}
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('ai-predictions-container').innerHTML = aiHtml;
+                }
+            } catch(e) {
+                console.error("API hatası:", e);
+            }
+        }
+
+        fetchDashboardData();
+        setInterval(fetchDashboardData, 5000);
 
         function controlBot(action) {
             alert(action === 'start' ? '▶️ Bot Başlatıldı!' : '🛑 Bot Durduruldu!');

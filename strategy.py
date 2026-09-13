@@ -1,22 +1,55 @@
+from flask import Flask, render_template, jsonify
 from market import get_live_market_data
 
-def analyze_market_for_dip(symbol):
-    """
-    TEST MODU: Koşulsuz anında test alımı tetikler.
-    """
-    try:
-        veriler = get_live_market_data()
-        current_price = 100.0
-        rsi = 32.5  # Test alımı için sabitledik
+app = Flask(__name__)
 
-        for item in veriler:
-            # Sembol formatı uyumsuzluğu ihtimaline karşı kontrol
-            if item.get("parite") in [symbol, symbol.replace("/", "")]:
-                current_price = float(item.get("fiyat", 100.0))
-                break
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-        # Her koşulda True dönecek
-        return True, current_price, rsi, "Test Alım Şartı Sağlandı"
-    except Exception as e:
-        print(f"Strateji hatası: {e}")
-        return True, 100.0, 30.0, "Hata Testi"
+@app.route('/api/status')
+def api_status():
+    veriler = get_live_market_data()
+    
+    # Gerçek Veri Analizli Yapay Zeka Modülü
+    ai_predictions = []
+    for item in veriler:
+        parite = item.get("parite", "SOL/USDT")
+        fiyat = float(item.get("fiyat", 100.0))
+        rsi = float(item.get("rsi", 45.0))
+        
+        # RSI ve Fiyat Mantığına Dayalı Canlı AI Kararı
+        if rsi < 40:
+            signal = "🚀 YÜKSELİŞ BEKLENTİSİ"
+            confidence = round(85 + (40 - rsi) * 0.5, 1)
+            target = f"${round(fiyat * 1.04, 2)}"
+            reason = f"RSI {rsi:.1f} seviyesinde dipte. Güçlü tepki alımı bekleniyor."
+        elif rsi > 65:
+            signal = "🔻 DÜŞÜŞ / DÜZELTME"
+            confidence = round(75 + (rsi - 65) * 0.4, 1)
+            target = f"${round(fiyat * 0.96, 2)}"
+            reason = f"RSI {rsi:.1f} aşırı alım bölgesinde. Kâr satışı riski yüksek."
+        else:
+            signal = "⚡ NÖTR / AKÜMÜLASYON"
+            confidence = 65.0
+            target = f"${round(fiyat * 1.01, 2)}"
+            reason = f"RSI {rsi:.1f} yatay bantta. Kesişim ve dip sinyali bekleniyor."
+            
+        ai_predictions.append({
+            "parite": parite,
+            "signal": signal,
+            "confidence": confidence,
+            "target": target,
+            "reason": reason
+        })
+
+    return jsonify({
+        "usdt": 20.72,
+        "try": 1006.58,
+        "try_rate": 48.58,
+        "bot_status": "Aktif",
+        "ai": ai_predictions
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)

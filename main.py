@@ -19,6 +19,7 @@ GECMIS_ISLEMLER = [
     {"coin": "ETH-USDT", "islem": "Alış/Satış", "kar": "+1.45%", "tutar": "+0.32 USDT", "zaman": "Dün 14:20"}
 ]
 
+
 @app.route('/')
 def home():
     btc, dolar = get_live_finans_data()
@@ -71,6 +72,7 @@ STRATEJI_AYARLARI = {
     "takip_edilen_coinler": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
     "min_islem_usdt": 1.0
 }
+
 
 def send_telegram_message(chat_id, text):
     if not TELEGRAM_TOKEN:
@@ -260,4 +262,3 @@ if __name__ == "__main__":
     t.start()
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
-    

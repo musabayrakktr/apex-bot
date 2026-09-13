@@ -6,13 +6,13 @@ import time
 from config import OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
 
 def get_okx_usdt_balance():
-    """OKX TR hesabından canlı USDT bakiyesini çeker. API yoksa varsayılan veya 0 döner."""
-    if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        # API girilmediyse örnek canlı takip için standart değer veya test bakiye
-        return 20.72 
+    """OKX TR hesabından canlı USDT bakiyesini API ile çeker."""
+    if not OKX_API_KEY or OKX_API_KEY == "BURAYA_API_KEY":
+        # API anahtarı girilmediyse test için uyarı ve 0 döner (Canlı çekmesi için API şarttır)
+        print("⚠️ OKX API anahtarları girilmemiş! Canlı bakiye için config.py içine API bilgileri girilmelidir.")
+        return 0.0
     
     try:
-        # OKX API V5 Balance Endpoint
         endpoint = "/api/v5/account/balance?ccy=USDT"
         url = f"https://www.okx.com{endpoint}"
         
@@ -38,14 +38,13 @@ def get_okx_usdt_balance():
             details = res['data'][0]['details']
             for d in details:
                 if d['ccy'] == 'USDT':
-                    return float(d['availBal']) # Kullanılabilir bakiye
+                    return float(d['availBal'])
         return 0.0
     except Exception as e:
-        print(f"OKX Bakiye çekme hatası: {e}")
-        return 20.72
+        print(f"OKX Canlı Bakiye Hatası: {e}")
+        return 0.0
 
 def get_live_finans_data():
-    """OKX üzerinden canlı BTC fiyatı ve USDT/TRY kurunu çeker."""
     try:
         url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         response = requests.get(url, timeout=5).json()
@@ -56,7 +55,7 @@ def get_live_finans_data():
             res_try = requests.get(usdt_try_url, timeout=3).json()
             dolar_kur = float(res_try['data'][0]['last'])
         except:
-            dolar_kur = 48.58  # Yedek kur
+            dolar_kur = 48.58
             
         return btc_fiyat, dolar_kur
     except Exception as e:

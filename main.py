@@ -10,7 +10,7 @@ import threading
 from flask import Flask, render_template, redirect, url_for
 
 
-# ==================== 1. WEB SUNUCUSU VE KUMANDA PANELİ ====================
+# ==================== 1. WEB SUNUCUSU VE KOMUTA MERKEZİ ====================
 app = Flask(__name__)
 
 @app.route('/')
@@ -163,7 +163,7 @@ def process_telegram_updates():
     global BOT_CALISIYOR
     last_update_id = 0
     son_saatlik_bildirim = 0
-    print("🤖 Telegram Bot dinlemede (Kumanda Paneli & Bildirim Modu)...")
+    print("🤖 Telegram Bot dinlemede (Terminal Modu)...")
     
     while True:
         try:
@@ -207,7 +207,7 @@ def process_telegram_updates():
                             welcome_text = (
                                 "🚀 *APEX TRADING BOT - KONTROL PANELİ* 🌟\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "✅ Web komuta merkezi ve saatlik bildirimler aktif!\n\n"
+                                "✅ Web komuta merkezi ve terminal logları aktif!\n\n"
                                 "💼 `/cuzdan` - OKX TR Cüzdan Bakiye Durumu\n"
                                 "📊 `/analiz` - Akıllı 5m & 15m Piyasa Analizi\n"
                                 "📈 `/rapor` - Geçmiş İşlemler ve Performans\n"
@@ -274,11 +274,11 @@ def process_telegram_updates():
                             
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Web panel ve saatlik bildirimler aktif.")
+                            send_telegram_message(chat_id, "🟢 *Oto Motor Çalıştırıldı!* Terminal aktif.")
                             
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
-                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Web panel bekleme moduna alındı.")
+                            send_telegram_message(chat_id, "🔴 *Oto Motor Durduruldu!* Terminal bekleme modunda.")
                             
         except Exception as e:
             print(f"Telegram polling hatası (Hata koruması aktif, yeniden deneniyor): {e}")
@@ -287,7 +287,7 @@ def process_telegram_updates():
 
 # ==================== 7. ANA BAŞLATICI ====================
 if __name__ == "__main__":
-    print("🌟 Apex Bot & Kumanda Paneli Başlatılıyor...")
+    print("🌟 Apex Bot Komuta Merkezi Başlatılıyor...")
     t = threading.Thread(target=process_telegram_updates, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

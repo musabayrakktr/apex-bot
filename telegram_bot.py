@@ -1,8 +1,8 @@
 import os
 import requests
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "SENIN_TELEGRAM_TOKENIN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "SENIN_CHAT_IDN")
+TELEGRAM_TOKEN = "8851186730:AAH5HyZBXPGwiuitUYagaq1dgcwte_fl34M"
+TELEGRAM_CHAT_ID = "8982017587"
 
 def send_telegram(message):
     try:

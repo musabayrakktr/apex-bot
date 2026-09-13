@@ -1,6 +1,7 @@
 import os
 from flask import Flask, render_template, jsonify
 from trader import get_account_balance
+from market import get_live_market_data
 
 app = Flask(__name__)
 
@@ -12,13 +13,16 @@ def index():
 def api_status():
     bakiye_data = get_account_balance()
     toplam_usdt = bakiye_data.get("usdt", 20.72)
-    try_rate = bakiye_data.get("try_rate", 34.20)
+    try_rate = bakiye_data.get("try_rate", 48.58)
     toplam_try = toplam_usdt * try_rate
+    
+    market_data = get_live_market_data()
     
     return jsonify({
         "usdt": f"{toplam_usdt:,.2f}",
         "try": f"{toplam_try:,.2f}",
-        "try_rate": f"{try_rate:.2f}"
+        "try_rate": f"{try_rate:.2f}",
+        "market": market_data
     })
 
 if __name__ == '__main__':

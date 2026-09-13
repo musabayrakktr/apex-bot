@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Apex Bot Aktif ve Çalışıyor! 🚀"
+    return "Apex Bot Modüler ve Canlı Sistem Aktif! 🚀"
 
 
 # ==================== 2. AYARLAR VE GÜVENLİK ====================
@@ -24,6 +24,7 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", 8982017587))
 OKX_API_KEY = os.environ.get("OKX_API_KEY", "")
 OKX_SECRET_KEY = os.environ.get("OKX_SECRET_KEY", "")
 OKX_PASSPHRASE = os.environ.get("OKX_PASSPHRASE", "")
+
 # Otomatik Motor Durum Kontrolü için Global Değişken
 BOT_CALISIYOR = False
 
@@ -98,7 +99,7 @@ def get_live_finans_data():
             dolar_kur = 48.58
             
         return btc_fiyat, dolar_kur
-        except Exception as e:
+    except Exception as e:
         print(f"Kur hatası: {e}")
         return 91400.0, 48.58
 
@@ -218,16 +219,9 @@ def process_telegram_updates():
 
 
 # ==================== 6. ANA BAŞLATICI ====================
-                        elif text.startswith("/kur"):
-                            btc, dolar = get_live_finans_data()
-                            cevap = (
-                                "💱 *CANLI KURLAR*\n"
-                                "━━━━━━━━━━━━━━━━━━━\n"
-                                f"💵 Dolar/TL: `{dolar:.2f} TL`\n"
-                                f"🪙 Bitcoin (BTC): `${btc:,.2f}`"
-                            )
-                            send_telegram_message(chat_id, cevap)
-                            
-        except Exception as e:
-            print(f"Telegram polling hatası: {e}")
-            time.sleep(5)
+if __name__ == "__main__":
+    print("🌟 Apex Bot Başlatılıyor...")
+    t = threading.Thread(target=process_telegram_updates, daemon=True)
+    t.start()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)

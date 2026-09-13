@@ -9,7 +9,7 @@ def send_welcome(message):
     welcome_text = (
         "🚀 *APEX TRADING BOT - CANLI OKX TR* 🌟\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "✅ Modüler sistem ve canlı bakiye entegrasyonu aktif!\n\n"
+        "✅ Modüler sistem ve canlı bakiye çekme aktif!\n\n"
         "💼 `/cuzdan` - OKX TR Canlı Cüzdan Durumu\n"
         "💱 `/kur` - Canlı Dolar ve BTC Kurları"
     )
@@ -18,7 +18,7 @@ def send_welcome(message):
 @bot.message_handler(commands=['cuzdan'])
 def send_wallet(message):
     try:
-        # Doğrudan OKX'ten canlı bakiye ve kur çekiliyor
+        # Doğrudan OKX TR hesabından canlı çekilir
         usdt_bakiye = get_okx_usdt_balance()
         btc, dolar = get_live_finans_data()
         try_bakiye = usdt_bakiye * dolar
@@ -38,4 +38,3 @@ def send_wallet(message):
 def send_rates(message):
     btc, dolar = get_live_finans_data()
     bot.send_message(message.chat.id, f"💱 *CANLI OKX KURLARI*\n━━━━━━━━━━━━━━━━━━━\n💵 Dolar/TL: `{dolar:.2f} TL`\n🪙 Bitcoin (BTC): `${btc:,.2f}`", parse_mode="Markdown")
-    

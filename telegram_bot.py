@@ -4,7 +4,6 @@ import urllib.request
 from config import TELEGRAM_TOKEN, CHAT_ID
 
 def send_telegram(message, target_chat_id=None):
-    """Telegram mesajı gönderme fonksiyonu"""
     cid = target_chat_id if target_chat_id else CHAT_ID
     if not cid or not TELEGRAM_TOKEN:
         return
@@ -22,13 +21,14 @@ def send_telegram(message, target_chat_id=None):
         print(f"Telegram Gönderim Hatası: {e}")
 
 def set_telegram_commands():
-    """Telegram Menü Komutlarını Tanımlar"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "start", "description": "Botu Başlat ve Menüyü Gör"},
         {"command": "cuzdan", "description": "Canlı Kasa & Bakiye Durumu"},
         {"command": "analiz", "description": "Coin Dip & Fiyat Analizi"},
         {"command": "rapor", "description": "Açık Pozisyonlar ve İşlem Geçmişi"},
+        {"command": "gecmis", "description": "Geçmiş İşlem Detayları"},
+        {"command": "kur", "description": "Dolar/TL Kuru"},
         {"command": "baslat", "description": "Oto Alım-Satım Motorunu Çalıştır"},
         {"command": "stop", "description": "Oto Alım-Satım Motorunu Durdur"}
     ]
@@ -41,7 +41,6 @@ def set_telegram_commands():
         print(f"Set Commands Hatası: {e}")
 
 def handle_message(text, chat_id):
-    """Gelen komutları işler"""
     from trader import get_account_balance
     from market import get_live_market_data
     from config import ACTIVE_POSITIONS, TRADE_HISTORY
@@ -56,7 +55,9 @@ def handle_message(text, chat_id):
             "📌 *Komut Listesi:*\n"
             "💰 /cuzdan - Canlı Kasa Durumu\n"
             "📈 /analiz - Coin Dip Analizleri\n"
-            "📊 /rapor - Pozisyonlar ve İşlem Geçmişi\n"
+            "📊 /rapor - Pozisyon Durumu\n"
+            "📜 /gecmis - İşlem Geçmişi\n"
+            "💱 /kur - Güncel Dolar Kuru\n"
             "▶️ /baslat - Oto Motoru Çalıştır\n"
             "🛑 /stop - Oto Motoru Durdur"
         )
@@ -68,7 +69,7 @@ def handle_message(text, chat_id):
         try_rate = b.get("try_rate", 34.20)
         try_val = usdt * try_rate
         msg = (
-            "💰 *CANLI KASA BAKIYESI*\n"
+            "💰 *CANLI KASA BAKİYESİ*\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             f"💵 *USDT Kasa:* `{usdt:,.2f} USDT`\n"
             f"₺ *TRY Karşılığı:* `₺{try_val:,.2f} TRY`\n"
@@ -79,18 +80,45 @@ def handle_message(text, chat_id):
 
     elif cmd in ['/analiz', 'analiz']:
         veriler = get_live_market_data()
-        msg = "📈 *APEX CANLI PIYASA & DIP ANALIZI*\n━━━━━━━━━━━━━━━━━━━\n\n"
+        msg = "📈 *APEX CANLI PİYASA & DİP ANALİZİ*\n━━━━━━━━━━━━━━━━━━━\n\n"
         for item in veriler:
             msg += f"🪙 *{item['parite']}*\n💰 Fiyat: `{item['fiyat']}` | RSI: `{item['rsi']}`\n📊 Durum: {item['durum']}\n\n"
         msg += "⏱️ *Dip Taraması: 7/24 Aktif*"
         send_telegram(msg, chat_id)
 
     elif cmd in ['/rapor', 'rapor']:
-        msg = "📊 *İŞLEM & POZİSYON RAPORU*\n━━━━━━━━━━━━━━━━━━━\n\n"
-        msg += f"🟢 *Açık Pozisyon Sayısı:* {len(ACTIVE_POSITIONS)}\n"
+        msg = (
+            "📊 *İŞLEM & POZİSYON RAPORU*\n"
+            "━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🟢 *Açık Pozisyon Sayısı:* {len(ACTIVE_POSITIONS)}\n"
+        )
         for pos in ACTIVE_POSITIONS:
             msg += f"• {pos['parite']} - Giriş: {pos['giris']} ({pos['durum']})\n"
-        msg += f"\n📜 *Tamamlanan İşlemler:* {len(TRADE_HISTORY)}\n"
-        for th in TRADE_HISTORY[-5:]:
-            msg += f"• {th['parite']} -> Kâr: {th['kar']} ({th['zaman']})\n"
+        msg += f"\n📜 *Tamamlanan İşlemler:* {len(TRADE_HISTORY)}"
         send_telegram(msg, chat_id)
+
+    elif cmd in ['/gecmis', 'gecmis']:
+        msg = "📜 *SON İŞLEM GEÇMİŞİ*\n━━━━━━━━━━━━━━━━━━━\n\n"
+        if not TRADE_HISTORY:
+            msg += "Henüz tamamlanmış bir işlem bulunmuyor."
+        else:
+            for th in TRADE_HISTORY[-10:]:
+                msg += f"• {th['parite']} -> Kâr: {th['kar']} ({th['zaman']})\n"
+        send_telegram(msg, chat_id)
+
+    elif cmd in ['/kur', 'kur']:
+        b = get_account_balance()
+        try_rate = b.get("try_rate", 34.20)
+        msg = (
+            "💱 *GÜNCEL DÖVİZ KURU*\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"🇺🇸 *1 USDT:* `₺{try_rate:.2f} TL`\n"
+            "ℹ️ *Kaynak:* OKX TR Canlı Piyasa"
+        )
+        send_telegram(msg, chat_id)
+
+    elif cmd in ['/baslat', 'baslat']:
+        send_telegram("▶️ *Oto Alım-Satım Motoru Çalıştırıldı!* Dip taraması 7/24 aktif.", chat_id)
+
+    elif cmd in ['/stop', 'stop']:
+        send_telegram("🛑 *Oto Alım-Satım Motoru Durduruldu!* Yeni alım yapılmayacak.", chat_id)

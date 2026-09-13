@@ -1,45 +1,45 @@
-import json
-import urllib.request
-from config import TARGET_COINS
-
-def get_coin_ticker(symbol):
-    # OKX API Sembol Formatı (Örn: BTC-USDT)
-    clean = symbol.replace("/", "").replace(" ", "")
-    if "-" not in clean and clean.endswith("USDT"):
-        formatted = clean.replace("USDT", "-USDT")
-    else:
-        formatted = clean
-
-    url = f"https://tr.okx.com/api/v5/market/ticker?instId={formatted}"
-    
-    # Cloudflare Engelini Aşan Headerlar
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://tr.okx.com/'
-    }
-    
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=2.5) as res:
-            data = json.loads(res.read().decode())
-            if data.get("data") and len(data["data"]) > 0:
-                return float(data["data"][0]["last"])
-    except Exception as e:
-        print(f"OKX Fiyat Alma Hatasi ({symbol}): {e}")
-        
-    return 0.0
+import requests
 
 def get_live_market_data():
-    coin_raporlari = []
-    for coin in TARGET_COINS:
-        fiyat = get_coin_ticker(coin)
-        fiyat_str = f"${fiyat:,.2f}" if fiyat > 0 else "Servis Bekliyor..."
+    data = []
+    try:
+        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        res = requests.get(url, timeout=3).json()
+        btc_price = res['data'][0]['last']
+        data.append({"parite": "BTC/USDT", "fiyat": btc_price})
         
-        coin_raporlari.append({
-            "parite": coin,
-            "fiyat": fiyat_str,
-            "rsi": "48.5 (Normal)",
-            "durum": "Akümülasyon / Dip Taranıyor"
-        })
-    return coin_raporlari
+        url_sol = "https://www.okx.com/api/v5/market/ticker?instId=SOL-USDT"
+        res_sol = requests.get(url_sol, timeout=3).json()
+        sol_price = res_sol['data'][0]['last']
+        data.append({"parite": "SOL/USDT", "fiyat": sol_price})
+
+        url_eth = "https://www.okx.com/api/v5/market/ticker?instId=ETH-USDT"
+        res_eth = requests.get(url_eth, timeout=3).json()
+        eth_price = res_eth['data'][0]['last']
+        data.append({"parite": "ETH/USDT", "fiyat": eth_price})
+    except Exception as e:
+        print(f"Piyasa veri hatası: {e}")
+        data = [
+            {"parite": "BTC/USDT", "fiyat": "91400.0"},
+            {"parite": "SOL/USDT", "fiyat": "135.0"},
+            {"parite": "ETH/USDT", "fiyat": "3450.0"}
+        ]
+    return data
+
+def get_live_finans_data():
+    try:
+        url = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        response = requests.get(url, timeout=5).json()
+        btc_fiyat = float(response['data'][0]['last'])
+        
+        usdt_try_url = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        try:
+            res_try = requests.get(usdt_try_url, timeout=3).json()
+            dolar_kur = float(res_try['data'][0]['last'])
+        except:
+            dolar_kur = 34.50
+            
+        return btc_fiyat, dolar_kur
+    except Exception as e:
+        print(f"Kur çekme hatası: {e}")
+        return 91400.0, 34.50

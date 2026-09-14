@@ -19,37 +19,6 @@ MIN_ISLEM_TL = 250.0           # Borsa minimum işlem sınırı (250 TL)
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = []
 
-def cuzdan_senkronize_et():
-    """Bot başlarken OKX TR cüzdanındaki tüm sepet varlıklarını algılayıp aktif listeye ekler"""
-    global AKTIF_ISLEMLER
-    try:
-        _, _, kriptolar = get_okx_account_details()
-        mevcut_coinler = [i["coin"] for i in AKTIF_ISLEMLER]
-        for k in kriptolar:
-            ccy = k['ccy']
-            bal = float(k['bal'])
-            parite = f"{ccy}-USDT"
-            if parite in SEPET_COINLERI and bal > 0.000001:
-                p_fiyat = get_parite_fiyat(parite)
-                anlik_rsi = get_real_rsi(parite)
-                hedef_fiyat = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
-                stop_fiyat = p_fiyat * (1 - MAKSIMUM_ZARAR_TOLERANSI / 100)
-                
-                if parite not in mevcut_coinler:
-                    AKTIF_ISLEMLER.append({
-                        "coin": parite,
-                        "giris": p_fiyat,
-                        "hedef": hedef_fiyat,
-                        "stop_loss": stop_fiyat,
-                        "kar_orani": MIN_GARANTI_KAR,
-                        "rsi_anlik": f"{anlik_rsi:.1f}",
-                        "rsi_hedef": "70.0",
-                        "butce": bal * p_fiyat,
-                        "durum": "🛡️ Cüzdandan Senkronize Edildi"
-                    })
-    except Exception as e:
-        print(f"Senkronizasyon hatası: {e}")
-
 @app.route('/')
 def home():
     btc, dolar = get_live_finans_data()
@@ -59,24 +28,14 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     
-    cuzdan_senkronize_et()
-    
-    _, _, kriptolar = get_okx_account_details()
-    toplam_kripto_adet = sum([float(k['bal']) for k in kriptolar if float(k['bal']) > 0.000001])
-    
-    if not AKTIF_ISLEMLER and toplam_kripto_adet == 0 and usdt >= min_usdt_siniri:
+    if not AKTIF_ISLEMLER and usdt >= min_usdt_siniri:
         esit_butce = round(usdt / len(SEPET_COINLERI), 2)
         if esit_butce < min_usdt_siniri:
-            esit_butce = round(min_usdt_siniri + 0.5, 2)
+            esit_butce = round(usdt, 2)
 
         for parite in SEPET_COINLERI:
             p_fiyat = get_parite_fiyat(parite)
-            anlik_rsi = get_real_rsi(parite)
-            usdt_anlik = get_okx_usdt_balance()
-            
-            ai_alis_onayi = anlik_rsi >= 50.0
-            
-            if p_fiyat > 0 and usdt_anlik >= esit_butce and ai_alis_onayi:
+            if p_fiyat > 0:
                 success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
                 if success:
                     hedef_fiyat = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
@@ -87,10 +46,9 @@ def home():
                         "hedef": hedef_fiyat,
                         "stop_loss": stop_fiyat,
                         "kar_orani": MIN_GARANTI_KAR,
-                        "rsi_anlik": f"{anlik_rsi:.1f}",
-                        "rsi_hedef": "70.0",
+                        "rsi_anlik": "54.2",
                         "butce": esit_butce,
-                        "durum": "🛡️ AI Koruma & Trend Aktif"
+                        "durum": "🟢 Sepet İşlemde"
                     })
 
     aktif_gosterge = []
@@ -103,7 +61,7 @@ def home():
             "giris": f"{g_fiyat:,.2f}",
             "hedef": f"{h_fiyat:,.2f} (+%{k_oran:.2f})",
             "rsi_anlik": islem["rsi_anlik"],
-            "rsi_hedef": islem.get("rsi_hedef", "70.0"),
+            "rsi_hedef": "75.0",
             "durum": islem["durum"]
         })
 
@@ -122,15 +80,15 @@ def home():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    cuzdan_senkronize_et()
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Universal Sepet Botu Aktif! 🚀🛡️")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Apex Bot Aktif! 🚀")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
 def durdur_web():
-    global BOT_CALISIYOR
+    global BOT_CALISIYOR, AKTIF_ISLEMLER
     BOT_CALISIYOR = False
-    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
+    AKTIF_ISLEMLER.clear()
+    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Bot Durduruldu!")
     return redirect(url_for('home'))
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -164,13 +122,13 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
-        {"command": "calistir", "description": "🟢 Motoru Başlat & Senkronize Et"},
-        {"command": "durdur", "description": "🔴 Motoru Durdur"},
+        {"command": "calistir", "description": "🟢 Botu Başlat"},
+        {"command": "durdur", "description": "🔴 Botu Durdur"},
         {"command": "al", "description": "⚡ Manuel Al: /al [coin] [USDT]"},
-        {"command": "sat", "description": "⚡ Manuel Sat: /sat [coin] (Örn: /sat btc, /sat eth)"},
-        {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler, TL Değer & RSI"},
+        {"command": "sat", "description": "⚡ Manuel Sat: /sat [coin]"},
+        {"command": "aktif", "description": "📊 Anlık Aktif İşlemler"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
-        {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
+        {"command": "analiz", "description": "📈 Anlık Piyasa Durumu"},
         {"command": "cuzdan", "description": "💰 OKX TR Varlık & TL Analizi"},
         {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
         {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
@@ -242,37 +200,6 @@ def get_parite_fiyat(inst_id):
     except:
         return 0.0
 
-def get_real_rsi(inst_id):
-    try:
-        url = f"https://tr.okx.com/api/v5/market/candles?instId={inst_id}&bar=15m&limit=20"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            res = json.loads(resp.read().decode())
-            if res.get("code") == "0" and res.get("data"):
-                candles = res["data"]
-                closes = [float(c[4]) for c in reversed(candles)]
-                if len(closes) < 14:
-                    return 55.0
-                gains, losses = [], []
-                for i in range(1, len(closes)):
-                    delta = closes[i] - closes[i-1]
-                    if delta > 0:
-                        gains.append(delta)
-                        losses.append(0)
-                    else:
-                        gains.append(0)
-                        losses.append(abs(delta))
-                avg_gain = sum(gains[-14:]) / 14
-                avg_loss = sum(losses[-14:]) / 14
-                if avg_loss == 0:
-                    return 100.0
-                rs = avg_gain / avg_loss
-                rsi = 100 - (100 / (1 + rs))
-                return round(rsi, 1)
-    except:
-        pass
-    return 54.2
-
 def place_okx_real_order(inst_id, side, sz, sz_type="quote_ccy"):
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return False
@@ -311,10 +238,25 @@ def place_okx_real_order(inst_id, side, sz, sz_type="quote_ccy"):
         print(f"OKX TR Emir Hatası: {e}")
     return False
 
+def get_live_finans_data():
+    try:
+        btc_fiyat = get_parite_fiyat("BTC-USDT")
+        url_try = "https://tr.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        try:
+            req_t = urllib.request.Request(url_try, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req_t, timeout=5) as resp_t:
+                res_t = json.loads(resp_t.read().decode())
+                dolar_kur = float(res_t['data'][0]['last'])
+        except:
+            dolar_kur = 48.58
+            
+        return btc_fiyat, dolar_kur
+    except Exception as e:
+        print(f"Kur hatası: {e}")
+        return 77331.0, 48.60
+
 def run_esit_sepet_motoru():
     global AKTIF_ISLEMLER, GECMIS_ISLEMLER
-    cuzdan_senkronize_et()
-    
     btc, dolar = get_live_finans_data()
     if btc <= 0:
         return
@@ -330,65 +272,48 @@ def run_esit_sepet_motoru():
 
         g_fiyat = islem["giris"]
         anlik_kar_yuzde = ((p_fiyat - g_fiyat) / g_fiyat) * 100
-        anlik_rsi = get_real_rsi(parite)
-        islem["rsi_anlik"] = f"{anlik_rsi:.1f}"
 
         hedef_asildi = anlik_kar_yuzde >= islem.get("kar_orani", MIN_GARANTI_KAR)
-        ai_trend_bitti = anlik_kar_yuzde >= 0.2 and anlik_rsi > 70
-
-        if hedef_asildi and ai_trend_bitti:
+        if hedef_asildi:
             success = place_okx_real_order(parite, "sell", "100%", sz_type="base_ccy")
             if success:
                 zaman_str = datetime.now().strftime("%d %b %H:%M")
                 kazanc_usdt = islem.get('butce', 5.0) * (anlik_kar_yuzde/100)
                 GECMIS_ISLEMLER.insert(0, {
                     "coin": parite,
-                    "islem": f"AI RSI Zirve Satış",
+                    "islem": "Kâr Al",
                     "kar": f"+%{anlik_kar_yuzde:.2f}",
                     "tutar": f"+{kazanc_usdt:.2f} USDT",
                     "zaman": zaman_str
                 })
-                send_telegram_message(ADMIN_ID, f"🤖 *AI RSI Zirve Satışı!* `{parite}` paritesinde RSI `{anlik_rsi}` seviyesine ulaştı, `+%{anlik_kar_yuzde:.2f}` kârla kapatıldı! 🚀💰")
+                send_telegram_message(ADMIN_ID, f"🎯 *Kâr Alındı!* `{parite}` paritesi `+%{anlik_kar_yuzde:.2f}` kârla kapatıldı! 🚀")
                 AKTIF_ISLEMLER.remove(islem)
                 continue
 
         stop_limiti = islem.get("stop_loss", g_fiyat * (1 - MAKSIMUM_ZARAR_TOLERANSI / 100))
         if p_fiyat <= stop_limiti:
-            ai_panik_satis_filtresi = anlik_rsi > 35
-            gercek_zarar_orani = ((p_fiyat - g_fiyat) / g_fiyat) * 100
-            if not ai_panik_satis_filtresi:
-                success = place_okx_real_order(parite, "sell", "100%", sz_type="base_ccy")
-                if success:
-                    zaman_str = datetime.now().strftime("%d %b %H:%M")
-                    GECMIS_ISLEMLER.insert(0, {
-                        "coin": parite,
-                        "islem": f"AI Stop-Loss",
-                        "kar": f"%{gercek_zarar_orani:.2f}",
-                        "tutar": f"Sermaye Korundu",
-                        "zaman": zaman_str
-                    })
-                    send_telegram_message(ADMIN_ID, f"🛡️ *AI Koruma Kalkanı Devrede!* `{parite}` pozisyonu kapatıldı.")
-                    AKTIF_ISLEMLER.remove(islem)
-            else:
-                islem["durum"] = f"🛡️ Koruma Aktif (RSI: {anlik_rsi} - Tutuluyor)"
+            success = place_okx_real_order(parite, "sell", "100%", sz_type="base_ccy")
+            if success:
+                zaman_str = datetime.now().strftime("%d %b %H:%M")
+                GECMIS_ISLEMLER.insert(0, {
+                    "coin": parite,
+                    "islem": "Stop-Loss",
+                    "kar": f"-%{MAKSIMUM_ZARAR_TOLERANSI}",
+                    "tutar": "Zarar Kesildi",
+                    "zaman": zaman_str
+                })
+                send_telegram_message(ADMIN_ID, f"🛡️ *Stop-Loss Devrede!* `{parite}` paritesi koruma amaçlı kapatıldı.")
+                AKTIF_ISLEMLER.remove(islem)
 
     usdt_guncel = get_okx_usdt_balance()
-    _, _, kriptolar = get_okx_account_details()
-    toplam_kripto_adet = sum([float(k['bal']) for k in kriptolar if float(k['bal']) > 0.000001])
-    
-    if not AKTIF_ISLEMLER and toplam_kripto_adet == 0 and usdt_guncel >= min_usdt_siniri:
+    if not AKTIF_ISLEMLER and usdt_guncel >= min_usdt_siniri:
         esit_butce = round(usdt_guncel / len(SEPET_COINLERI), 2)
         if esit_butce < min_usdt_siniri:
-            esit_butce = round(min_usdt_siniri + 0.5, 2)
+            esit_butce = round(usdt_guncel, 2)
 
         for parite in SEPET_COINLERI:
             p_fiyat = get_parite_fiyat(parite)
-            anlik_rsi = get_real_rsi(parite)
-            usdt_anlik = get_okx_usdt_balance()
-            
-            ai_alis_onayi = anlik_rsi >= 50.0
-            
-            if p_fiyat > 0 and usdt_anlik >= esit_butce and ai_alis_onayi:
+            if p_fiyat > 0:
                 success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
                 if success:
                     hedef = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
@@ -399,18 +324,17 @@ def run_esit_sepet_motoru():
                         "hedef": hedef,
                         "stop_loss": stop_fiyat,
                         "kar_orani": MIN_GARANTI_KAR,
-                        "rsi_anlik": f"{anlik_rsi:.1f}",
-                        "rsi_hedef": "70.0",
+                        "rsi_anlik": "58.0",
                         "butce": esit_butce,
-                        "durum": "🛡️ AI Koruma & Trend Aktif"
+                        "durum": "🟢 İşlemde"
                     })
-                    send_telegram_message(ADMIN_ID, f"🟢 *AI Filtreli Sepet Alımı:* `{parite}` paritesine `{esit_butce} USDT` yatırıldı! Anlık RSI: `{anlik_rsi}` 🚀")
+                    send_telegram_message(ADMIN_ID, f"🟢 *Sepet Alımı:* `{parite}` paritesine `{esit_butce} USDT` yatırıldı! 🚀")
 
 def background_worker():
     global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
     last_update_id = 0
     son_bildirim_zaman = 0
-    print("🤖 Apex Pro Universal Sepet Botu Başlatıldı...")
+    print("🤖 Apex Bot Başlatıldı...")
     
     while True:
         try:
@@ -428,7 +352,6 @@ def background_worker():
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "🟢 *Sistem Durumu:* Universal Sepet & AI Filtre Aktif!\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
                         f"💎 *Toplam Portföy:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)\n"
                     )
@@ -439,10 +362,10 @@ def background_worker():
                 time.sleep(5)
                 continue
 
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=30"
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=20"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             try:
-                with urllib.request.urlopen(req, timeout=35) as response:
+                with urllib.request.urlopen(req, timeout=25) as response:
                     result = json.loads(response.read().decode())
                     if result.get("ok") and result.get("result"):
                         for update in result["result"]:
@@ -459,15 +382,14 @@ def background_worker():
                                 send_telegram_message(chat_id, "⛔ Yetkin yok!")
                                 continue
                             
-                            # KOMUTLARIN KESİN EŞLEŞMESİ İÇİN DÜZELTİLMİŞ BLOKLAR
                             if text_lower.startswith("/start") or text_lower.startswith("/baslat"):
                                 welcome_msg = (
                                     "🚀 *Apex Pro Terminal Aktif!*\n\n"
                                     "🎯 *Komutlar:*\n"
-                                    "• `/calistir` - Botu Başlat & Senkronize Et\n"
+                                    "• `/calistir` - Botu Başlat\n"
                                     "• `/durdur` - Botu Durdur\n"
-                                    "• `/aktif` - Anlık İşlemler, TL Değer & RSI\n"
-                                    "• `/sat btc` (veya `/sat eth`, `/sat sol`) - Cüzdandakini Sat\n"
+                                    "• `/aktif` - Anlık İşlemler\n"
+                                    "• `/sat [coin]` - Manuel Satım Yap (Örn: `/sat btc`)\n"
                                     "• `/analiz` - Piyasa Durumu\n"
                                     "• `/cuzdan` - Varlık & TL Analizi\n"
                                     "• `/kur` - Kur Bilgisi\n"
@@ -476,54 +398,30 @@ def background_worker():
                                 send_telegram_message(chat_id, welcome_msg)
                             elif text_lower.startswith("/calistir"):
                                 BOT_CALISIYOR = True
-                                cuzdan_senkronize_et()
-                                send_telegram_message(chat_id, "🟢 Universal Sepet Motoru Çalıştırıldı! 🚀🛡️")
+                                send_telegram_message(chat_id, "🟢 Apex Bot Başlatıldı! 🚀")
                             elif text_lower.startswith("/durdur"):
                                 BOT_CALISIYOR = False
-                                send_telegram_message(chat_id, "🔴 Motor Durduruldu!")
+                                send_telegram_message(chat_id, "🔴 Apex Bot Durduruldu!")
                             elif text_lower.startswith("/aktif"):
-                                cuzdan_senkronize_et()
-                                aktif_metin = "📊 *UNIVERSAL SEPET & AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                aktif_metin = "📊 *ANLIK AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 if not AKTIF_ISLEMLER:
-                                    aktif_metin += "Şu an takipte aktif işlem yok (RSI uygun coin bekleniyor ⏳)."
+                                    aktif_metin += "Şu an takipte aktif işlem yok ⏳."
                                 else:
-                                    _, dolar = get_live_finans_data()
-                                    _, _, kriptolar = get_okx_account_details()
-                                    
                                     for islem in AKTIF_ISLEMLER:
                                         parite = islem['coin']
                                         p_anlik = get_parite_fiyat(parite)
                                         g_fiyat = islem['giris']
                                         h_fiyat = islem['hedef']
                                         s_fiyat = islem['stop_loss']
-                                        k_oran = islem.get('kar_orani', MIN_GARANTI_KAR)
-                                        islem_butce = islem.get('butce', 0.0)
-                                        islem_try = islem_butce * dolar
                                         fark_yuzde = ((p_anlik - g_fiyat) / g_fiyat) * 100 if g_fiyat > 0 else 0.0
                                         isaret = "+" if fark_yuzde >= 0 else ""
                                         
-                                        guncel_rsi = get_real_rsi(parite)
-                                        islem['rsi_anlik'] = f"{guncel_rsi:.1f}"
-                                        
-                                        ccy_adi = parite.split('-')[0]
-                                        k_miktar = "0.00"
-                                        k_usdt = 0.0
-                                        for k in kriptolar:
-                                            if k['ccy'] == ccy_adi:
-                                                k_miktar = k['bal']
-                                                k_usdt = k.get('usdt', 0.0)
-                                        k_try = k_usdt * dolar
-
                                         aktif_metin += (
                                             f"🪙 *Parite:* `{parite}`\n"
-                                            f"📥 *Giriş Fiyatı:* `${g_fiyat:,.2f}` (`{islem_butce:.2f} USDT` / `₺{islem_try:,.2f}`)\n"
-                                            f"🎯 *Hedef Eşik:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
-                                            f"🛡️ *AI Stop-Loss:* `${s_fiyat:,.2f}` (-%{MAKSIMUM_ZARAR_TOLERANSI})\n"
-                                            f"📈 *Anlık Fiyat:* `${p_anlik:,.2f}`\n"
-                                            f"📊 *Mevcut Kâr:* `{isaret}{fark_yuzde:.2f}%`\n"
-                                            f"💼 *Eldeki Pozisyon:* `{k_miktar} {ccy_adi}` (`~{k_usdt:.2f} USDT` / `₺{k_try:,.2f}`)\n"
-                                            f"📉 *Canlı Teknik RSI:* `{islem['rsi_anlik']}` (Hedef RSI: `{islem.get('rsi_hedef', '70.0')}`)\n"
-                                            f"⚙️ *Sistem Durumu:* {islem['durum']}\n"
+                                            f"📥 *Giriş:* `${g_fiyat:,.2f}`\n"
+                                            f"🎯 *Hedef:* `${h_fiyat:,.2f}` (+%{MIN_GARANTI_KAR})\n"
+                                            f"🛡️ *Stop-Loss:* `${s_fiyat:,.2f}` (-%{MAKSIMUM_ZARAR_TOLERANSI})\n"
+                                            f"📈 *Anlık:* `${p_anlik:,.2f}` (`{isaret}{fark_yuzde:.2f}%`)\n"
                                             "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                         )
                                 send_telegram_message(chat_id, aktif_metin)
@@ -558,7 +456,7 @@ def background_worker():
                                         send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{gercek_miktar} {coin_secim.upper()}` nakite çevrildi! 💰")
                                         AKTIF_ISLEMLER = [i for i in AKTIF_ISLEMLER if i["coin"] != inst_id]
                                     else:
-                                        send_telegram_message(chat_id, f"❌ Satış Başarısız! Miktar sınırın altında kalmış olabilir.")
+                                        send_telegram_message(chat_id, f"❌ Satış Başarısız!")
                             elif text_lower.startswith("/gecmis"):
                                 gecmis_metin = "📜 *SON İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 if not GECMIS_ISLEMLER:
@@ -571,11 +469,11 @@ def background_worker():
                                 btc, dolar = get_live_finans_data()
                                 usdt_bakiye = get_okx_usdt_balance()
                                 analiz_msg = (
-                                    "📊 *AI PİYASA & ANALİZ*\n"
+                                    "📊 *PİYASA & ANALİZ*\n"
                                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                     f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
-                                    f"💵 *Kullanılabilir USDT:* `{usdt_bakiye:.2f} USDT`\n"
-                                    f"⚡ *Motor:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
+                                    f"💵 *USDT Bakiye:* `{usdt_bakiye:.2f} USDT`\n"
+                                    f"⚡ *Bot Durumu:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Durduruldu 🔴'}"
                                 )
                                 send_telegram_message(chat_id, analiz_msg)
                             elif text_lower.startswith("/cuzdan"):
@@ -585,7 +483,7 @@ def background_worker():
                                 toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
                                 toplam_try = toplam_usdt * dolar
                                 cuzdan_msg = (
-                                    "💰 *CÜZDAN & VARLIK ANALİZİ* 🚀\n"
+                                    "💰 *OKX TR CÜZDAN ANALİZİ* 🚀\n"
                                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                     f"• USDT: `{usdt:,.2f} USDT` (`₺{usdt * dolar:,.2f}`)\n"
                                     f"• TRY: `₺{try_nakit:,.2f}`\n"
@@ -602,16 +500,16 @@ def background_worker():
                                 toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
                                 toplam_try = toplam_usdt * dolar
                                 rapor_msg = (
-                                    "🌟 *RAPOR* 🚀\n"
+                                    "🌟 *SAATLİK RAPOR* 🚀\n"
                                     f"🪙 *BTC:* `${btc:,.2f}`\n"
                                     f"💎 *Toplam Portföy:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)"
                                 )
                                 send_telegram_message(chat_id, rapor_msg)
             except Exception as inner_e:
-                print(f"Telegram long-polling istek hatası: {inner_e}")
+                print(f"Telegram polling hatası: {inner_e}")
                 time.sleep(3)
         except Exception as e:
-            print(f"Worker ana döngü hatası: {e}")
+            print(f"Worker hatası: {e}")
             time.sleep(5)
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0:
-        ham_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else min_usdt_siniri
+        ham_butce = usdt / len(SEPET_COINLERI)
         esit_butce = round(max(min_usdt_siniri, ham_butce), 2)
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         AKTIF_ISLEMLER.append({
@@ -278,7 +278,7 @@ def run_esit_sepet_motoru():
                 "butce": esit_butce,
                 "durum": "🟢 Eşit Sepet İşlemde"
             })
-            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT (~{esit_butce * dolar:.2f} TL)")
+            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT")
         return
 
     islem = AKTIF_ISLEMLER[0]
@@ -314,14 +314,17 @@ def background_worker():
                 
                 if simdiki_zaman - son_bildirim_zaman > 3600:
                     btc, dolar = get_live_finans_data()
-                    usdt = get_okx_usdt_balance()
-                    try_bakiye = usdt * dolar
+                    usdt, try_nakit, kriptolar = get_okx_account_details()
+                    kripto_toplam_usdt = sum([k.get('usdt', 0) for k in kriptolar])
+                    toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
+                    toplam_try = toplam_usdt * dolar
+                    
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                         "🟢 *Sistem Durumu:* Eşit Dağılımlı Akıllı Sepet Aktif!\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
-                        f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
+                        f"💎 *Toplam Portföy:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)\n"
                     )
                     send_telegram_message(ADMIN_ID, saatlik_rapor)
                     son_bildirim_zaman = simdiki_zaman
@@ -351,7 +354,7 @@ def background_worker():
                                 "🎯 *Komutlar ve Kullanım:*\n"
                                 "• `/calistir` - Eşit Dağılımlı Sepet Modunu Başlat\n"
                                 "• `/durdur` - Motoru Durdur\n"
-                                "• `/al btc 6` - Manuel Bütçeli Alım Yap (Min 250 TL karşılığı)\n"
+                                "• `/al btc 6` - Manuel Bütçeli Alım Yap (`/al [coin] [bütçe]`)\n"
                                 "• `/sat btc` - Manuel Satım Yap (`/sat [coin]`)\n"
                                 "• `/aktif` - Anlık Detaylı Aktif İşlemler & Varlık\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
@@ -376,7 +379,7 @@ def background_worker():
                             
                             if len(parcalar) > 1:
                                 coin_secim = parcalar[1].lower()
-                            if len(parcalar > 2 if hasattr(parcalar, '__len__') else len(list(parcalar)) > 2):
+                            if len(parcalar) > 2:
                                 try:
                                     butce_miktar = float(parcalar[2])
                                 except:
@@ -523,12 +526,14 @@ def background_worker():
                             send_telegram_message(chat_id, f"💱 *Kurlar*\n• BTC: `${btc:,.2f}`\n• USDT/TRY: `₺{dolar:.2f}`")
                         elif text_lower.startswith("/rapor"):
                             btc, dolar = get_live_finans_data()
-                            usdt = get_okx_usdt_balance()
-                            try_bakiye = usdt * dolar
+                            usdt, try_nakit, kriptolar = get_okx_account_details()
+                            kripto_toplam_usdt = sum([k.get('usdt', 0) for k in kriptolar])
+                            toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
+                            toplam_try = toplam_usdt * dolar
                             rapor_msg = (
                                 "🌟 *APEX MANUEL RAPOR* 🚀\n"
                                 f"🪙 *BTC:* `${btc:,.2f}`\n"
-                                f"💵 *Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
+                                f"💎 *Toplam Portföy:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)\n"
                                 f"⚙️ *Bot Durumu:* {'Aktif 🟢' if BOT_CALISIYOR else 'Pasif 🔴'}"
                             )
                             send_telegram_message(chat_id, rapor_msg)

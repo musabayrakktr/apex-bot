@@ -16,9 +16,7 @@ MIN_GARANTI_KAR = 0.2
 MIN_ISLEM_TL = 250.0  # Borsa minimum işlem sınırı (250 TL)
 
 AKTIF_ISLEMLER = []
-GECMIS_ISLEMLER = [
-    {"coin": "BTC-USDT", "islem": "Alış/Satış (AI Hacim Kâr Al)", "kar": "+0.20%", "tutar": "+0.30 USDT", "zaman": "14 Sep 09:52"}
-]
+GECMIS_ISLEMLER = []  # Artık tamamen dinamik ve gerçek işlemlerle dolacak!
 
 @app.route('/')
 def home():
@@ -279,7 +277,6 @@ def run_esit_sepet_motoru():
                 "durum": "🟢 Eşit Sepet İşlemde"
             })
             print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT")
-            # Otomatik alım bildirimi eklendi!
             send_telegram_message(ADMIN_ID, f"🟢 *Oto Bot Alım Gerçekleşti!* `BTC-USDT` paritesine `{esit_butce} USDT` (`₺{esit_butce * dolar:.2f}`) bütçe ayrıldı! Giriş: `${btc:,.2f}` 🚀")
         return
 
@@ -436,6 +433,15 @@ def background_worker():
                             else:
                                 success = place_okx_real_order(inst_id, "sell", gercek_miktar, sz_type="base_ccy")
                                 if success:
+                                    # Manuel satış başarılı olduğunda geçmişe anlık işleyelim
+                                    zaman_str = datetime.now().strftime("%d %b %H:%M")
+                                    GECMIS_ISLEMLER.insert(0, {
+                                        "coin": inst_id,
+                                        "islem": "Manuel Satış",
+                                        "kar": "Nakde Çevrildi",
+                                        "tutar": f"{gercek_miktar} {coin_secim.upper()}",
+                                        "zaman": zaman_str
+                                    })
                                     send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{gercek_miktar} {coin_secim.upper()}` nakite çevrildi! 💰")
                                     AKTIF_ISLEMLER.clear()
                                 else:
@@ -479,10 +485,10 @@ def background_worker():
                         elif text_lower.startswith("/gecmis"):
                             gecmis_metin = "📜 *SON TAMAMLANAN İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             if not GECMIS_ISLEMLER:
-                                gecmis_metin += "Henüz tamamlanmış işlem yok."
+                                gecmis_metin += "Henüz tamamlanmış gerçek işlem bulunmuyor (Bot kârla kapattıkça buraya eklenecek ⏳)."
                             else:
                                 for islem in GECMIS_ISLEMLER[:5]:
-                                    gecmis_metin += f"• *{islem['coin']}* | `{islem['kar']}` ({islem['zaman']})\n"
+                                    gecmis_metin += f"• *{islem['coin']}* | `{islem['kar']}` ({islem['tutar']}) | `{islem['zaman']}`\n"
                             send_telegram_message(chat_id, gecmis_metin)
                         elif text_lower.startswith("/analiz"):
                             btc, dolar = get_live_finans_data()

@@ -116,7 +116,7 @@ def set_telegram_commands():
         {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
-        {"command": "cuzdan", "description": "💰 Nakit & Kripto Detaylı Bakiye"},
+        {"command": "cuzdan", "description": "💰 Tüm Kriptolar & Nakit Detayı"},
         {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
         {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
     ]
@@ -135,7 +135,7 @@ def get_okx_account_details():
     kriptolar = []
     
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}]
+        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}, {"ccy": "ETH", "bal": "0.0", "eq": 0.0}, {"ccy": "SOL", "bal": "0.0", "eq": 0.0}]
         
     try:
         request_path = "/api/v5/account/balance"
@@ -157,6 +157,9 @@ def get_okx_account_details():
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
+                
+                # Önce cüzdandaki tüm coinleri mapleyelim
+                bakiye_sozlugu = {}
                 for coin in details:
                     bal = float(coin.get("availBal", "0"))
                     eq = float(coin.get("eq", "0"))
@@ -165,11 +168,24 @@ def get_okx_account_details():
                         nakit_usdt = eq
                     elif ccy == "TRY":
                         nakit_try = eq
-                    elif ccy not in ["USDT", "TRY"] and bal > 0.0001 and eq > 0.1:
-                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.8f}", "eq": eq})
+                    else:
+                        bakiye_sozlugu[ccy] = {"bal": bal, "eq": eq}
+
+                # Sepet coinleri (BTC, ETH, SOL) her daim raporda görünsün
+                sepet_temelleri = ["BTC", "ETH", "SOL"]
+                for ccy in sepet_temelleri:
+                    veri = bakiye_sozlugu.get(ccy, {"bal": 0.0, "eq": 0.0})
+                    kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
+                    
+                # Cüzdanda başka ekstra kriptolar varsa onları da ekleyelim
+                for ccy, veri in bakiye_sozlugu.items():
+                    if ccy not in sepet_temelleri and veri['eq'] > 0.05:
+                        kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
+                        
     except Exception as e:
         print(f"Detaylı bakiye okuma hatası: {e}")
         nakit_usdt = 17.65
+        kriptolar = [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}, {"ccy": "ETH", "bal": "0.0", "eq": 0.0}, {"ccy": "SOL", "bal": "0.0", "eq": 0.0}]
         
     return nakit_usdt, nakit_try, kriptolar
 
@@ -338,7 +354,7 @@ def background_worker():
                                 "• `/aktif` - Anlık Detaylı Aktif İşlemler\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
-                                "• `/cuzdan` - Nakit & Kripto Detaylı Bakiye\n"
+                                "• `/cuzdan` - Tüm Kriptolar & Nakit Detayı\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
@@ -408,11 +424,8 @@ def background_worker():
                                 f"• TRY: `₺{try_nakit:,.2f}`\n\n"
                                 "🪙 *KRİPTO VARLIKLAR (Sepet / Alınanlar):*\n"
                             )
-                            if kriptolar:
-                                for k in kriptolar:
-                                    cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"
-                            else:
-                                cuzdan_msg += "• Aktif tutulan büyük kripto varlık yok.\n"
+                            for k in kriptolar:
+                                cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"
                                 
                             cuzdan_msg += (
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"

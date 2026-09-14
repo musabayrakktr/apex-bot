@@ -294,7 +294,6 @@ def run_korumali_sepet_motoru():
         anlik_deger = butce * (p_fiyat / islem["giris"])
         zarar_try = butce - anlik_deger
 
-        # 1. KÂR HEDEFİ ULAŞTI MI?
         if p_fiyat >= islem["hedef"]:
             k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
             success, msg = execute_okx_try_order(islem["coin"], "sell", sz="100%", sz_type="base_ccy")
@@ -312,11 +311,10 @@ def run_korumali_sepet_motoru():
             })
             if success:
                 send_telegram_message(ADMIN_ID, f"🎯 *{islem['coin']} Kâr Al Gerçekleşti!* +%{k_oran:.2f} kârla kapatıldı! 🚀💰")
-             AKTIF_ISLEMLER.remove(islem)
+            AKTIF_ISLEMLER.remove(islem)
 
-        # 2. AKILLI SERMAYE KORUMA (Zarar > 5 TL ve RSI < 30 DEĞİLSE = Sat ve Koru)
         elif zarar_try >= MAX_ZARAR_LIMIT_TRY:
-            if rsi_val > 30:  # AI diyor ki: Düşüş derinleşiyor, toparlanma emaresi yok! Koru parayı.
+            if rsi_val > 30:
                 success, msg = execute_okx_try_order(islem["coin"], "sell", sz="100%", sz_type="base_ccy")
                 tr_zaman = datetime.now(timezone(timedelta(hours=3)))
                 zaman_str = tr_zaman.strftime("%d %b %H:%M")
@@ -329,11 +327,10 @@ def run_korumali_sepet_motoru():
                     "zaman": zaman_str
                 })
                 if success:
-                    send_telegram_message(ADMIN_ID, f"🛡️ *Akıllı Sermaye Koruma Devrede!* `{islem['coin']}` zarar (-₺{zarar_try:.2f}) sınırını aştı ve RSI ({rsi_val}) toparlanma vermediği için nakite çıkıldı.")
+                    send_telegram_message(ADMIN_ID, f"🛡️ *Akıllı Sermaye Koruma Devrede!* `{islem['coin']}` zarar sınırını aştı ve RSI ({rsi_val}) toparlanma vermediği için nakite çıkıldı.")
                 AKTIF_ISLEMLER.remove(islem)
             else:
-                # RSI dipte olduğu için AI bekletiyor (toparlanma bekleniyor)
-                print(f"💡 [AI Bekletme] {islem['coin']} zararda (-₺{zarar_try:.2f}) ancak RSI dipte ({rsi_val}), pozisyon korunuyor...")
+                print(f"💡 [AI Bekletme] {islem['coin']} zararda ancak RSI dipte ({rsi_val}), pozisyon korunuyor...")
 
 def background_worker():
     global BOT_CALISIYOR

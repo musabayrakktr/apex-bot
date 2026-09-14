@@ -13,6 +13,7 @@ app = Flask(__name__)
 
 SEPET_COINLERI = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
 MIN_GARANTI_KAR = 0.2 
+MIN_ISLEM_TL = 250.0  # Borsa minimum işlem sınırı (250 TL)
 
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = [
@@ -25,9 +26,11 @@ def home():
     usdt = get_okx_usdt_balance()
     try_val = usdt * dolar
     
+    min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0:
-        esit_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else 2.0
+        ham_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else min_usdt_siniri
+        esit_butce = round(max(min_usdt_siniri, ham_butce), 2)
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         AKTIF_ISLEMLER.append({
             "coin": "BTC-USDT",
@@ -113,7 +116,7 @@ def set_telegram_commands():
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
         {"command": "calistir", "description": "🟢 Eşit Dağılımlı Sepet Motorunu Başlat"},
         {"command": "durdur", "description": "🔴 Motoru Durdur"},
-        {"command": "al", "description": "⚡ Manuel Al: /al [coin] [bütçe] (Örn: /al btc 3)"},
+        {"command": "al", "description": "⚡ Manuel Al: /al [coin] [USDT] (Min 250 TL karşılığı)"},
         {"command": "sat", "description": "⚡ Manuel Sat: /sat [coin] (Örn: /sat btc)"},
         {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler & Varlık"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
@@ -249,15 +252,17 @@ def get_live_finans_data():
 
 def run_esit_sepet_motoru():
     global AKTIF_ISLEMLER, GECMIS_ISLEMLER
-    btc, _ = get_live_finans_data()
+    btc, dolar = get_live_finans_data()
     if btc <= 0:
         return
 
     usdt = get_okx_usdt_balance()
-    if usdt < 1.0:
+    min_usdt_siniri = MIN_ISLEM_TL / dolar
+    if usdt < min_usdt_siniri:
         return
 
-    esit_butce = round(usdt / len(SEPET_COINLERI), 2)
+    ham_butce = usdt / len(SEPET_COINLERI)
+    esit_butce = round(max(min_usdt_siniri, ham_butce), 2)
 
     if not AKTIF_ISLEMLER:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
@@ -273,7 +278,7 @@ def run_esit_sepet_motoru():
                 "butce": esit_butce,
                 "durum": "🟢 Eşit Sepet İşlemde"
             })
-            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT")
+            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT (~{esit_butce * dolar:.2f} TL)")
         return
 
     islem = AKTIF_ISLEMLER[0]
@@ -283,7 +288,7 @@ def run_esit_sepet_motoru():
         
         if success:
             zaman_str = datetime.now().strftime("%d %b %H:%M")
-            kazanc_usdt = islem.get('butce', 2.0) * (k_oran/100)
+            kazanc_usdt = islem.get('butce', 5.0) * (k_oran/100)
             GECMIS_ISLEMLER.insert(0, {
                 "coin": islem["coin"],
                 "islem": f"Alış/Satış (Kâr Al)",
@@ -346,7 +351,7 @@ def background_worker():
                                 "🎯 *Komutlar ve Kullanım:*\n"
                                 "• `/calistir` - Eşit Dağılımlı Sepet Modunu Başlat\n"
                                 "• `/durdur` - Motoru Durdur\n"
-                                "• `/al btc 3` - Manuel Bütçeli Alım Yap (`/al [coin] [bütçe]`)\n"
+                                "• `/al btc 6` - Manuel Bütçeli Alım Yap (Min 250 TL karşılığı)\n"
                                 "• `/sat btc` - Manuel Satım Yap (`/sat [coin]`)\n"
                                 "• `/aktif` - Anlık Detaylı Aktif İşlemler & Varlık\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
@@ -365,15 +370,22 @@ def background_worker():
                         elif text_lower.startswith("/al"):
                             parcalar = raw_text.split()
                             coin_secim = "btc"
-                            butce_miktar = 2.0
+                            _, dolar_kur = get_live_finans_data()
+                            min_usdt = MIN_ISLEM_TL / dolar_kur
+                            butce_miktar = round(min_usdt + 0.5, 2)
+                            
                             if len(parcalar) > 1:
                                 coin_secim = parcalar[1].lower()
-                            if len(parcalar) > 2:
+                            if len(parcalar > 2 if hasattr(parcalar, '__len__') else len(list(parcalar)) > 2):
                                 try:
                                     butce_miktar = float(parcalar[2])
                                 except:
                                     pass
                             
+                            if butce_miktar < min_usdt:
+                                send_telegram_message(chat_id, f"⚠️ Minimum işlem sınırı 250 TL'dir (En az `{min_usdt:.2f} USDT` girmelisin)!")
+                                continue
+                                
                             inst_map = {"btc": "BTC-USDT", "eth": "ETH-USDT", "sol": "SOL-USDT"}
                             inst_id = inst_map.get(coin_secim, "BTC-USDT")
                             
@@ -396,7 +408,7 @@ def background_worker():
                                         "butce": butce_miktar,
                                         "durum": "⚡ Manuel Alım Yapıldı"
                                     })
-                                    send_telegram_message(chat_id, f"⚡ *Manuel Alım Başarılı!* `{butce_miktar} USDT` değerinde `{inst_id}` alındı! 🚀")
+                                    send_telegram_message(chat_id, f"⚡ *Manuel Alım Başarılı!* `{butce_miktar} USDT` (~₺{butce_miktar * dolar_kur:.2f}) değerinde `{inst_id}` alındı! 🚀")
                                 else:
                                     send_telegram_message(chat_id, f"❌ Manuel Alım Emri Başarısız Oldu!")
                         elif text_lower.startswith("/sat"):
@@ -408,12 +420,21 @@ def background_worker():
                             inst_map = {"btc": "BTC-USDT", "eth": "ETH-USDT", "sol": "SOL-USDT"}
                             inst_id = inst_map.get(coin_secim, "BTC-USDT")
                             
-                            success = place_okx_real_order(inst_id, "sell", "100%", sz_type="base_ccy")
-                            if success:
-                                send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{inst_id}` pozisyonu nakite çevrildi! 💰")
-                                AKTIF_ISLEMLER.clear()
+                            _, _, kriptolar = get_okx_account_details()
+                            gercek_miktar = None
+                            for k in kriptolar:
+                                if k['ccy'] == coin_secim.upper():
+                                    gercek_miktar = k['bal']
+                                    
+                            if not gercek_miktar or float(gercek_miktar) <= 0.00001:
+                                send_telegram_message(chat_id, f"⚠️ Cüzdanında satılacak yeterli `{coin_secim.upper()}` bulunmuyor!")
                             else:
-                                send_telegram_message(chat_id, f"❌ Manuel Satış Emri Başarısız (Varlık bulunmuyor olabilir).")
+                                success = place_okx_real_order(inst_id, "sell", gercek_miktar, sz_type="base_ccy")
+                                if success:
+                                    send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{gercek_miktar} {coin_secim.upper()}` nakite çevrildi! 💰")
+                                    AKTIF_ISLEMLER.clear()
+                                else:
+                                    send_telegram_message(chat_id, f"❌ Satış Başarısız! Miktar borsa minimum işlem sınırının altında.")
                         elif text_lower.startswith("/aktif"):
                             aktif_metin = "📊 *ANLIK DETAYLI AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             if not AKTIF_ISLEMLER:

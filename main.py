@@ -148,6 +148,7 @@ def set_telegram_commands():
 
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
+        print("⚠️ OKX API Bilgileri Eksik!")
         return 9.84
     try:
         request_path = "/api/v5/account/balance"
@@ -167,14 +168,18 @@ def get_okx_usdt_balance():
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
-            print(f"🔍 OKX TR Bakiye Yanıtı: {res}") # Hata ayıklama için konsola basıyoruz
+            print(f"🔍 OKX TR Bakiye Ham Yanıtı: {res}")
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
                 for coin in details:
                     if coin.get("ccy") == "USDT":
-                        return float(coin.get("availBal", "0"))
+                        bal = float(coin.get("availBal", "0"))
+                        print(f"💰 Bulunan USDT Bakiyesi: {bal}")
+                        return bal
+            else:
+                print(f"❌ OKX TR Bakiye Hata Kodu/Mesajı: {res}")
     except Exception as e:
-        print(f"OKX TR Bakiye okuma hatası: {e}")
+        print(f"🚨 OKX TR Bakiye İstek İstisnası (Hata): {e}")
     return 9.84
 
 def place_okx_real_order_usdt(inst_id, side, usdt_sz):
@@ -207,14 +212,14 @@ def place_okx_real_order_usdt(inst_id, side, usdt_sz):
         req = urllib.request.Request(url, data=body.encode('utf-8'), headers=headers, method='POST')
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
-            print(f"🔍 OKX TR Emir Yanıtı: {res}") # Hata ayıklama için konsola basıyoruz
+            print(f"🔍 OKX TR Emir Ham Yanıtı: {res}")
             if res.get("code") == "0":
                 print(f"🚀 OKX TR Gerçek USDT Emri Başarılı! İşlem: {side} | Tutar: {usdt_sz} USDT")
                 return True
             else:
-                print(f"❌ OKX TR Emir Hatası: {res.get('msg')}")
+                print(f"❌ OKX TR Emir Red Hatası: {res}")
     except Exception as e:
-        print(f"OKX TR API İstek Hatası: {e}")
+        print(f"🚨 OKX TR Emir İstek İstisnası (Hata): {e}")
     return False
 
 def get_live_finans_data():

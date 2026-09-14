@@ -113,7 +113,7 @@ def set_telegram_commands():
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
         {"command": "calistir", "description": "🟢 Eşit Dağılımlı Sepet Motorunu Başlat"},
         {"command": "durdur", "description": "🔴 Motoru Durdur"},
-        {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler"},
+        {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler & Varlık"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
         {"command": "cuzdan", "description": "💰 OKX TR Varlık & TL Analizi"},
@@ -157,9 +157,7 @@ def get_okx_account_details():
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
-                
-                # Anlık BTC fiyatını alalım ki kripto varlıkların USDT/TL karşılığını tam hesaplayabilelim
-                btc_fiyat, _ = get_live_finans_data()
+                btc_fiyat, dolar = get_live_finans_data()
                 
                 for coin in details:
                     bal = float(coin.get("availBal", "0"))
@@ -173,7 +171,6 @@ def get_okx_account_details():
                         usdt_deger = bal * btc_fiyat
                         kriptolar.append({"ccy": ccy, "bal": f"{bal:.8f}", "usdt": usdt_deger})
                     elif ccy in ["ETH", "SOL"] and bal > 0.0001:
-                        # ETH ve SOL için yaklaşık veya anlık değer
                         kriptolar.append({"ccy": ccy, "bal": f"{bal:.6f}", "usdt": 0.0})
                     elif ccy not in ["USDT", "TRY"] and bal > 0.001:
                         kriptolar.append({"ccy": ccy, "bal": f"{bal:.4f}", "usdt": 0.0})
@@ -361,11 +358,23 @@ def background_worker():
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
                         elif text.startswith("/aktif"):
-                            aktif_metin = "📊 *ANLIK DETAYLI AKTİF İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            aktif_metin = "📊 *ANLIK DETAYLI AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             if not AKTIF_ISLEMLER:
                                 aktif_metin += "Şu an takipte aktif işlem yok (Yeni alım bekleniyor ⏳)."
                             else:
-                                btc_anlik, _ = get_live_finans_data()
+                                btc_anlik, dolar = get_live_finans_data()
+                                _, _, kriptolar = get_okx_account_details()
+                                
+                                # Eldeki BTC miktarını ve TL/USDT değerini çekelim
+                                btc_miktar_str = "0.00"
+                                btc_usdt_deger = 0.0
+                                for k in kriptolar:
+                                    if k['ccy'] == 'BTC':
+                                        btc_miktar_str = k['bal']
+                                        btc_usdt_deger = k.get('usdt', 0.0)
+                                        
+                                btc_try_deger = btc_usdt_deger * dolar
+                                
                                 for islem in AKTIF_ISLEMLER:
                                     g_fiyat = islem['giris']
                                     h_fiyat = islem['hedef']
@@ -378,7 +387,8 @@ def background_worker():
                                         f"🎯 *Satış Hedef Fiyatı:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
                                         f"📈 *Anlık Piyasa Fiyatı:* `${btc_anlik:,.2f}`\n"
                                         f"📊 *Mevcut Durum / Kâr:* `{isaret}{fark_yuzde:.2f}%`\n"
-                                        f"💵 *İşleme Ayrılan Bütçe:* `{islem.get('butce', 0):.2f} USDT`\n"
+                                        f"💼 *Eldeki Pozisyon:* `{btc_miktar_str} BTC`\n"
+                                        f"💵 *Pozisyon Değeri:* `~{btc_usdt_deger:.2f} USDT` (`₺{btc_try_deger:,.2f}`)\n"
                                         f"📈 *Teknik Gösterge (RSI):* `{islem['rsi_anlik']}`\n"
                                         f"⚙️ *Sistem Durumu:* {islem['durum']}\n"
                                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -404,9 +414,8 @@ def background_worker():
                             send_telegram_message(chat_id, analiz_msg)
                         elif text.startswith("/cuzdan"):
                             usdt, try_nakit, kriptolar = get_okx_account_details()
-                            btc_fiyat, dolar = get_live_finans_data()
+                            _, dolar = get_live_finans_data()
                             
-                            # Toplam varlık hesaplama (USDT + TRY karşılığı + Kriptoların USDT değeri)
                             kripto_toplam_usdt = sum([k.get('usdt', 0) for k in kriptolar])
                             toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
                             toplam_try = toplam_usdt * dolar

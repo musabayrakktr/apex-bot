@@ -11,8 +11,8 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-# Dinamik Yüzde Bazlı Hedef Marjı (Giriş fiyatının %0.5 üstü - Scalping için ideal)
-HEDEF_YUZDE_KAR = 0.5 
+# Ultra Hızlı Scalping İçin %0.2 Hedef Marjı
+HEDEF_YUZDE_KAR = 0.2 
 
 AKTIF_ISLEMLER = [
     {"coin": "BTC-USDT", "giris": 77350.00, "hedef": 77350.00 * (1 + HEDEF_YUZDE_KAR / 100), "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}
@@ -28,7 +28,6 @@ def home():
     usdt = get_okx_usdt_balance()
     try_val = usdt * dolar
     
-    # Web panelde dinamik hedefi güzel formatla gösterelim
     aktif_gosterge = []
     for islem in AKTIF_ISLEMLER:
         g_fiyat = islem["giris"]

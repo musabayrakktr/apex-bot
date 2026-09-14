@@ -11,8 +11,8 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-# Ultra Hızlı Scalping İçin %0.2 Hedef Marjı
-HEDEF_YUZDE_KAR = 0.2 
+# Şimşek Hızında Scalping İçin %0.1 Hedef Marjı
+HEDEF_YUZDE_KAR = 0.1 
 
 AKTIF_ISLEMLER = [
     {"coin": "BTC-USDT", "giris": 77350.00, "hedef": 77350.00 * (1 + HEDEF_YUZDE_KAR / 100), "rsi_anlik": "42.5", "rsi_hedef": "65.0", "durum": "Takipte / Dip Bekleniyor"}

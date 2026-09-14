@@ -5,7 +5,7 @@ import hashlib
 import base64
 import json
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import threading
 from flask import Flask, render_template, redirect, url_for, jsonify
 
@@ -30,7 +30,8 @@ def home():
     if not AKTIF_ISLEMLER and btc > 0 and BOT_CALISIYOR:
         esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 7.31
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
-        zaman_str = datetime.now().strftime("%d %b %H:%M")
+        tr_zaman = datetime.now(timezone(timedelta(hours=3)))
+        zaman_str = tr_zaman.strftime("%d %b %H:%M")
         
         place_okx_real_order_usdt("BTC-USDT", "buy", esit_butce)
         
@@ -147,7 +148,7 @@ def set_telegram_commands():
 
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 14.63
+        return 9.84
     try:
         request_path = "/api/v5/account/balance"
         timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
@@ -162,7 +163,6 @@ def get_okx_usdt_balance():
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0"
         }
-        # OKX TR Üretim Sunucusu Kullanılıyor
         url = f"https://tr.okx.com{request_path}"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
@@ -174,7 +174,7 @@ def get_okx_usdt_balance():
                         return float(coin.get("availBal", "0"))
     except Exception as e:
         print(f"OKX TR Bakiye okuma hatası: {e}")
-    return 14.63
+    return 9.84
 
 def place_okx_real_order_usdt(inst_id, side, usdt_sz):
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
@@ -202,7 +202,6 @@ def place_okx_real_order_usdt(inst_id, side, usdt_sz):
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0"
         }
-        # OKX TR Üretim Sunucusu Kullanılıyor
         url = f"https://tr.okx.com{request_path}"
         req = urllib.request.Request(url, data=body.encode('utf-8'), headers=headers, method='POST')
         with urllib.request.urlopen(req, timeout=10) as response:
@@ -252,7 +251,8 @@ def run_gercek_butceli_sepet_motoru():
 
     if not AKTIF_ISLEMLER and BOT_CALISIYOR:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
-        zaman_str = datetime.now().strftime("%d %b %H:%M")
+        tr_zaman = datetime.now(timezone(timedelta(hours=3)))
+        zaman_str = tr_zaman.strftime("%d %b %H:%M")
         
         place_okx_real_order_usdt("BTC-USDT", "buy", esit_butce)
         
@@ -276,7 +276,8 @@ def run_gercek_butceli_sepet_motoru():
             k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
             place_okx_real_order_usdt("BTC-USDT", "sell", islem.get('butce', 7.31))
             
-            zaman_str = datetime.now().strftime("%d %b %H:%M")
+            tr_zaman = datetime.now(timezone(timedelta(hours=3)))
+            zaman_str = tr_zaman.strftime("%d %b %H:%M")
             GECMIS_ISLEMLER.insert(0, {
                 "coin": islem["coin"],
                 "islem": f"Alış/Satış (OKX TR Kâr Al)",
@@ -349,7 +350,29 @@ def background_worker():
                             send_telegram_message(chat_id, welcome_msg)
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 OKX TR Gerçek Sepet Motoru Çalıştırıldı! 🚀💰")
+                            # Tetiklendiği an sıfırdan taze işlem açması için listeyi temizleyip güncel saat basıyoruz
+                            AKTIF_ISLEMLER.clear()
+                            btc_tr, _ = get_live_finans_data()
+                            usdt_tr = get_okx_usdt_balance()
+                            esit_butce_tr = round(usdt_tr / len(SEPET_COINLERI), 2) if usdt_tr > 0 else 7.31
+                            hedef_tr = btc_tr * (1 + MIN_GARANTI_KAR / 100)
+                            tr_zaman = datetime.now(timezone(timedelta(hours=3)))
+                            zaman_str_tr = tr_zaman.strftime("%d %b %H:%M")
+                            
+                            place_okx_real_order_usdt("BTC-USDT", "buy", esit_butce_tr)
+                            
+                            AKTIF_ISLEMLER.append({
+                                "coin": "BTC-USDT",
+                                "giris": btc_tr,
+                                "hedef": hedef_tr,
+                                "kar_orani": MIN_GARANTI_KAR,
+                                "rsi_anlik": "52.1",
+                                "rsi_hedef": "68.0",
+                                "butce": esit_butce_tr,
+                                "islem_saati": zaman_str_tr,
+                                "durum": f"🟢 OKX TR Gerçek İşlemde (+%{MIN_GARANTI_KAR})"
+                            })
+                            send_telegram_message(chat_id, f"🟢 OKX TR Gerçek Sepet Motoru Çalıştırıldı! Saat: `{zaman_str_tr}` 🚀💰")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             AKTIF_ISLEMLER.clear()

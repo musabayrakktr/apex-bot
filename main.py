@@ -360,7 +360,7 @@ def background_worker():
                                     h_fiyat = islem['hedef']
                                     k_oran = islem.get('kar_orani', MIN_GARANTI_KAR)
                                     fark_yuzde = ((btc_anlik - g_fiyat) / g_fiyat) * 100
-                                     isaret = "+" if fark_yuzde >= 0 else ""
+                                    isaret = "+" if fark_yuzde >= 0 else ""
                                     aktif_metin += (
                                         f"🪙 *Parite:* `{islem['coin']}`\n"
                                         f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}`\n"

@@ -279,6 +279,8 @@ def run_esit_sepet_motoru():
                 "durum": "🟢 Eşit Sepet İşlemde"
             })
             print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT")
+            # Otomatik alım bildirimi eklendi!
+            send_telegram_message(ADMIN_ID, f"🟢 *Oto Bot Alım Gerçekleşti!* `BTC-USDT` paritesine `{esit_butce} USDT` (`₺{esit_butce * dolar:.2f}`) bütçe ayrıldı! Giriş: `${btc:,.2f}` 🚀")
         return
 
     islem = AKTIF_ISLEMLER[0]

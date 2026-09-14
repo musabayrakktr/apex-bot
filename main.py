@@ -11,7 +11,6 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-# Yapay Zeka Esnek Karar Motoru Eşiği
 MIN_GARANTI_KAR = 0.1 
 
 AKTIF_ISLEMLER = []
@@ -174,9 +173,7 @@ def run_ai_esnek_karar_motoru():
     if btc <= 0:
         return
 
-    # Eğer aktif işlem yoksa yeni pozisyon aç
     if not AKTIF_ISLEMLER:
-        # AI Hacim ve Trend Analizi: Güçlü hacimde hedefi esnet (%0.2), normalde garanti %0.1 tut
         ai_kar_orani = 0.2 if btc > 77000 else MIN_GARANTI_KAR
         hedef = btc * (1 + ai_kar_orani / 100)
         
@@ -192,7 +189,6 @@ def run_ai_esnek_karar_motoru():
         print(f"🟢 [AI Esnek Motor] Pozisyon Açıldı -> Giriş: {btc} | Hedef Marj: %{ai_kar_orani}")
         return
 
-    # Pozisyon takip kontrolü
     islem = AKTIF_ISLEMLER[0]
     if btc >= islem["hedef"]:
         k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
@@ -210,7 +206,7 @@ def run_ai_esnek_karar_motoru():
         AKTIF_ISLEMLER.clear()
 
 def background_worker():
-    global BOT_CALISIYOR
+    global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
     last_update_id = 0
     son_bildirim_zaman = 0
     print("🤖 Apex Pro Bot AI Esnek Karar Döngüsü Başlatıldı...")
@@ -262,6 +258,8 @@ def background_worker():
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
                                 "• `/cuzdan` - Güncel Bakiye Varlığı\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
+                                "• `/aktif` - Anlık Aktif İşlemler & RSI\n"
+                                "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
                             send_telegram_message(chat_id, welcome_msg)
@@ -271,6 +269,31 @@ def background_worker():
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
+                        elif text.startswith("/aktif"):
+                            aktif_metin = "📊 *ANLIK AKTİF İŞLEMLER & RSI TAKİBİ*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            if not AKTIF_ISLEMLER:
+                                aktif_metin += "Şu an takipte aktif işlem yok (Beklemede)."
+                            else:
+                                for islem in AKTIF_ISLEMLER:
+                                    k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
+                                    aktif_metin += (
+                                        f"🪙 *Coin:* `{islem['coin']}`\n"
+                                        f"📥 *Giriş:* `${islem['giris']:,.2f}`\n"
+                                        f"🎯 *Hedef:* `${islem['hedef']:,.2f}` (+%{k_oran:.1f})\n"
+                                        f"📈 *Anlık RSI:* `{islem['rsi_anlik']}`\n"
+                                        f"📉 *Hedef RSI:* `{islem['rsi_hedef']}`\n"
+                                        f"⚙️ *Durum:* {islem['durum']}\n"
+                                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    )
+                            send_telegram_message(chat_id, aktif_metin)
+                        elif text.startswith("/gecmis"):
+                            gecmis_metin = "📜 *SON TAMAMLANAN İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            if not GECMIS_ISLEMLER:
+                                gecmis_metin += "Henüz tamamlanmış işlem yok."
+                            else:
+                                for islem in GECMIS_ISLEMLER[:5]:
+                                    gecmis_metin += f"• *{islem['coin']}* | `{islem['kar']}` ({islem['zaman']})\n"
+                            send_telegram_message(chat_id, gecmis_metin)
                         elif text.startswith("/analiz"):
                             btc, dolar = get_live_finans_data()
                             analiz_msg = (

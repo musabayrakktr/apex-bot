@@ -115,6 +115,30 @@ def send_telegram_message(chat_id, text):
     except Exception as e:
         print(f"Telegram mesaj gönderme hatası: {e}")
 
+def set_telegram_commands():
+    if not TELEGRAM_TOKEN:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
+    commands = [
+        {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
+        {"command": "calistir", "description": "🟢 AI Esnek Scalping Modunu Başlat"},
+        {"command": "durdur", "description": "🔴 Motoru Durdur"},
+        {"command": "aktif", "description": "📊 Anlık Aktif İşlemler & RSI"},
+        {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
+        {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
+        {"command": "cuzdan", "description": "💰 Güncel Bakiye Varlığı"},
+        {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
+        {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
+    ]
+    payload = {"commands": commands}
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            print("✅ Emojili Telegram Menü Komutları Kaydedildi!")
+    except Exception as e:
+        print(f"Telegram setMyCommands hatası: {e}")
+
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return 21.93
@@ -255,11 +279,11 @@ def background_worker():
                                 "🎯 *Komutlar:*\n"
                                 "• `/calistir` - AI Esnek Hedef Modunu Başlat\n"
                                 "• `/durdur` - Motoru Durdur\n"
+                                "• `/aktif` - Anlık Aktif İşlemler & RSI\n"
+                                "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
                                 "• `/cuzdan` - Güncel Bakiye Varlığı\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
-                                "• `/aktif` - Anlık Aktif İşlemler & RSI\n"
-                                "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
                             send_telegram_message(chat_id, welcome_msg)
@@ -328,6 +352,7 @@ def background_worker():
             time.sleep(5)
 
 if __name__ == "__main__":
+    set_telegram_commands()
     t = threading.Thread(target=background_worker, daemon=True)
     t.start()
     port = int(os.environ.get("PORT", 10000))

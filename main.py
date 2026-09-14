@@ -27,7 +27,6 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0 and usdt >= min_usdt_siniri:
-        # Tüm parayı tek coine basmak yerine sepet coinlerine paylaştırıyoruz
         esit_butce = round(usdt / len(SEPET_COINLERI), 2)
         if esit_butce < min_usdt_siniri:
             esit_butce = round(usdt, 2)
@@ -264,7 +263,6 @@ def run_esit_sepet_motoru():
     if usdt < min_usdt_siniri:
         return
 
-    # Kasayı tam bölüştürerek sadece sepet payı kadar alım yapıyoruz
     esit_butce = round(usdt / len(SEPET_COINLERI), 2)
     if esit_butce < min_usdt_siniri:
         esit_butce = round(usdt, 2)
@@ -473,11 +471,13 @@ def background_worker():
                                     g_fiyat = islem['giris']
                                     h_fiyat = islem['hedef']
                                     k_oran = islem.get('kar_orani', MIN_GARANTI_KAR)
+                                    islem_butce = islem.get('butce', 0.0)
+                                    islem_try = islem_butce * dolar
                                     fark_yuzde = ((btc_anlik - g_fiyat) / g_fiyat) * 100
                                     isaret = "+" if fark_yuzde >= 0 else ""
                                     aktif_metin += (
                                         f"🪙 *Parite:* `{islem['coin']}`\n"
-                                        f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}`\n"
+                                        f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}` (`{islem_butce:.2f} USDT` / `₺{islem_try:,.2f}`)\n"
                                         f"🎯 *Satış Hedef Fiyatı:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
                                         f"📈 *Anlık Piyasa Fiyatı:* `${btc_anlik:,.2f}`\n"
                                         f"📊 *Mevcut Durum / Kâr:* `{isaret}{fark_yuzde:.2f}%`\n"

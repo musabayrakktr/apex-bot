@@ -116,7 +116,7 @@ def set_telegram_commands():
         {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
-        {"command": "cuzdan", "description": "💰 OKX TR Varlık Detayı"},
+        {"command": "cuzdan", "description": "💰 OKX TR Varlık & TL Analizi"},
         {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
         {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
     ]
@@ -151,34 +151,32 @@ def get_okx_account_details():
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0"
         }
-        # OKX TR Endpoint Adresi
         url = f"https://tr.okx.com{request_path}"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
-                bakiye_sozlugu = {}
+                
+                # Anlık BTC fiyatını alalım ki kripto varlıkların USDT/TL karşılığını tam hesaplayabilelim
+                btc_fiyat, _ = get_live_finans_data()
+                
                 for coin in details:
                     bal = float(coin.get("availBal", "0"))
-                    eq = float(coin.get("eq", "0"))
                     ccy = coin.get("ccy")
-                    if ccy == "USDT":
-                        nakit_usdt = eq
-                    elif ccy == "TRY":
-                        nakit_try = eq
-                    else:
-                        bakiye_sozlugu[ccy] = {"bal": bal, "eq": eq}
-
-                # Sepet coinleri ve cüzdandaki tüm varlıkları ekleyelim
-                sepet_temelleri = ["BTC", "ETH", "SOL"]
-                for ccy in sepet_temelleri:
-                    veri = bakiye_sozlugu.get(ccy, {"bal": 0.0, "eq": 0.0})
-                    kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
                     
-                for ccy, veri in bakiye_sozlugu.items():
-                    if ccy not in sepet_temelleri and veri['eq'] > 0.01:
-                        kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
+                    if ccy == "USDT":
+                        nakit_usdt = float(coin.get("cashBal", bal))
+                    elif ccy == "TRY":
+                        nakit_try = float(coin.get("cashBal", bal))
+                    elif ccy == "BTC" and bal > 0.000001:
+                        usdt_deger = bal * btc_fiyat
+                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.8f}", "usdt": usdt_deger})
+                    elif ccy in ["ETH", "SOL"] and bal > 0.0001:
+                        # ETH ve SOL için yaklaşık veya anlık değer
+                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.6f}", "usdt": 0.0})
+                    elif ccy not in ["USDT", "TRY"] and bal > 0.001:
+                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.4f}", "usdt": 0.0})
                         
     except Exception as e:
         print(f"OKX TR Bakiye okuma hatası: {e}")
@@ -351,7 +349,7 @@ def background_worker():
                                 "• `/aktif` - Anlık Detaylı Aktif İşlemler\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
-                                "• `/cuzdan` - OKX TR Varlık Detayı\n"
+                                "• `/cuzdan` - OKX TR Varlık & TL Analizi\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
@@ -406,27 +404,32 @@ def background_worker():
                             send_telegram_message(chat_id, analiz_msg)
                         elif text.startswith("/cuzdan"):
                             usdt, try_nakit, kriptolar = get_okx_account_details()
-                            _, dolar = get_live_finans_data()
+                            btc_fiyat, dolar = get_live_finans_data()
                             
-                            toplam_usdt = usdt + (try_nakit / dolar)
-                            for k in kriptolar:
-                                toplam_usdt += k.get("eq", 0)
+                            # Toplam varlık hesaplama (USDT + TRY karşılığı + Kriptoların USDT değeri)
+                            kripto_toplam_usdt = sum([k.get('usdt', 0) for k in kriptolar])
+                            toplam_usdt = usdt + (try_nakit / dolar) + kripto_toplam_usdt
                             toplam_try = toplam_usdt * dolar
                             
                             cuzdan_msg = (
-                                "💰 *OKX TR CÜZDAN VARLIK ANALİZİ* 🚀\n"
+                                "💰 *OKX TR CÜZDAN & VARLIK ANALİZİ* 🚀\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                "💵 *NAKİT / YATIRILABİLİR BAKİYE:*\n"
-                                f"• USDT: `{usdt:,.2f} USDT`\n"
+                                "💵 *NAKİT BAKİYELER:*\n"
+                                f"• USDT: `{usdt:,.2f} USDT` (`₺{usdt * dolar:,.2f}`)\n"
                                 f"• TRY: `₺{try_nakit:,.2f}`\n\n"
                                 "🪙 *KRİPTO VARLIKLAR (OKX TR):*\n"
                             )
-                            for k in kriptolar:
-                                cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"
+                            if kriptolar:
+                                for k in kriptolar:
+                                    cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k.get('usdt', 0):.2f} USDT` / `₺{k.get('usdt', 0) * dolar:,.2f}`)\n"
+                            else:
+                                cuzdan_msg += "• Aktif kripto varlık bulunmuyor.\n"
                                 
                             cuzdan_msg += (
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"💎 *TOPLAM VARLIK:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)"
+                                f"💎 *TOPLAM PORTFÖY DEĞERİ:*\n"
+                                f"• `{toplam_usdt:,.2f} USDT`\n"
+                                f"• `₺{toplam_try:,.2f}`"
                             )
                             send_telegram_message(chat_id, cuzdan_msg)
                         elif text.startswith("/kur"):

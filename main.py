@@ -116,7 +116,7 @@ def set_telegram_commands():
         {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
-        {"command": "cuzdan", "description": "💰 Tüm Kriptolar & Nakit Detayı"},
+        {"command": "cuzdan", "description": "💰 OKX TR Varlık Detayı"},
         {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
         {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
     ]
@@ -135,7 +135,7 @@ def get_okx_account_details():
     kriptolar = []
     
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}, {"ccy": "ETH", "bal": "0.0", "eq": 0.0}, {"ccy": "SOL", "bal": "0.0", "eq": 0.0}]
+        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}]
         
     try:
         request_path = "/api/v5/account/balance"
@@ -151,14 +151,13 @@ def get_okx_account_details():
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0"
         }
-        url = f"https://www.okx.com{request_path}"
+        # OKX TR Endpoint Adresi
+        url = f"https://tr.okx.com{request_path}"
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
-                
-                # Önce cüzdandaki tüm coinleri mapleyelim
                 bakiye_sozlugu = {}
                 for coin in details:
                     bal = float(coin.get("availBal", "0"))
@@ -171,21 +170,19 @@ def get_okx_account_details():
                     else:
                         bakiye_sozlugu[ccy] = {"bal": bal, "eq": eq}
 
-                # Sepet coinleri (BTC, ETH, SOL) her daim raporda görünsün
+                # Sepet coinleri ve cüzdandaki tüm varlıkları ekleyelim
                 sepet_temelleri = ["BTC", "ETH", "SOL"]
                 for ccy in sepet_temelleri:
                     veri = bakiye_sozlugu.get(ccy, {"bal": 0.0, "eq": 0.0})
                     kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
                     
-                # Cüzdanda başka ekstra kriptolar varsa onları da ekleyelim
                 for ccy, veri in bakiye_sozlugu.items():
-                    if ccy not in sepet_temelleri and veri['eq'] > 0.05:
+                    if ccy not in sepet_temelleri and veri['eq'] > 0.01:
                         kriptolar.append({"ccy": ccy, "bal": f"{veri['bal']:.6f}", "eq": veri['eq']})
                         
     except Exception as e:
-        print(f"Detaylı bakiye okuma hatası: {e}")
+        print(f"OKX TR Bakiye okuma hatası: {e}")
         nakit_usdt = 17.65
-        kriptolar = [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}, {"ccy": "ETH", "bal": "0.0", "eq": 0.0}, {"ccy": "SOL", "bal": "0.0", "eq": 0.0}]
         
     return nakit_usdt, nakit_try, kriptolar
 
@@ -221,25 +218,25 @@ def place_okx_real_order(inst_id, side, sz, sz_type="quote_ccy"):
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0"
         }
-        url = f"https://www.okx.com{request_path}"
+        url = f"https://tr.okx.com{request_path}"
         req = urllib.request.Request(url, data=body.encode('utf-8'), headers=headers, method='POST')
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
             if res.get("code") == "0":
                 return True
     except Exception as e:
-        print(f"OKX Emir Hatası: {e}")
+        print(f"OKX TR Emir Hatası: {e}")
     return False
 
 def get_live_finans_data():
     try:
-        url_btc = "https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT"
+        url_btc = "https://tr.okx.com/api/v5/market/ticker?instId=BTC-USDT"
         req_b = urllib.request.Request(url_btc, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req_b, timeout=5) as resp:
             res_b = json.loads(resp.read().decode())
             btc_fiyat = float(res_b['data'][0]['last'])
         
-        url_try = "https://www.okx.com/api/v5/market/ticker?instId=USDT-TRY"
+        url_try = "https://tr.okx.com/api/v5/market/ticker?instId=USDT-TRY"
         try:
             req_t = urllib.request.Request(url_try, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req_t, timeout=5) as resp_t:
@@ -354,7 +351,7 @@ def background_worker():
                                 "• `/aktif` - Anlık Detaylı Aktif İşlemler\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
-                                "• `/cuzdan` - Tüm Kriptolar & Nakit Detayı\n"
+                                "• `/cuzdan` - OKX TR Varlık Detayı\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
@@ -417,12 +414,12 @@ def background_worker():
                             toplam_try = toplam_usdt * dolar
                             
                             cuzdan_msg = (
-                                "💰 *GÜNCEL CÜZDAN VARLIK ANALİZİ* 🚀\n"
+                                "💰 *OKX TR CÜZDAN VARLIK ANALİZİ* 🚀\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 "💵 *NAKİT / YATIRILABİLİR BAKİYE:*\n"
                                 f"• USDT: `{usdt:,.2f} USDT`\n"
                                 f"• TRY: `₺{try_nakit:,.2f}`\n\n"
-                                "🪙 *KRİPTO VARLIKLAR (Sepet / Alınanlar):*\n"
+                                "🪙 *KRİPTO VARLIKLAR (OKX TR):*\n"
                             )
                             for k in kriptolar:
                                 cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"

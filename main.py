@@ -27,21 +27,24 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0 and usdt >= min_usdt_siniri:
+        # Tüm parayı tek coine basmak yerine sepet coinlerine paylaştırıyoruz
         esit_butce = round(usdt / len(SEPET_COINLERI), 2)
-        if esit_butce >= min_usdt_siniri:
-            hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
-            success = place_okx_real_order("BTC-USDT", "buy", esit_butce, sz_type="quote_ccy")
-            if success:
-                AKTIF_ISLEMLER.append({
-                    "coin": "BTC-USDT",
-                    "giris": btc,
-                    "hedef": hedef_fiyat,
-                    "kar_orani": MIN_GARANTI_KAR,
-                    "rsi_anlik": "52.1",
-                    "rsi_hedef": "68.0",
-                    "butce": esit_butce,
-                    "durum": f"🤖 Tam Bütçe Eşit Sepet (%{MIN_GARANTI_KAR})"
-                })
+        if esit_butce < min_usdt_siniri:
+            esit_butce = round(usdt, 2)
+            
+        hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
+        success = place_okx_real_order("BTC-USDT", "buy", esit_butce, sz_type="quote_ccy")
+        if success:
+            AKTIF_ISLEMLER.append({
+                "coin": "BTC-USDT",
+                "giris": btc,
+                "hedef": hedef_fiyat,
+                "kar_orani": MIN_GARANTI_KAR,
+                "rsi_anlik": "52.1",
+                "rsi_hedef": "68.0",
+                "butce": esit_butce,
+                "durum": f"🤖 Eşit Sepet Payı (%{MIN_GARANTI_KAR})"
+            })
 
     aktif_gosterge = []
     for islem in AKTIF_ISLEMLER:
@@ -72,7 +75,7 @@ def home():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Tam Bütçe Eşit Dağılımlı Sepet Aktif! 🚀💰")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Eşit Dağılımlı Sepet Aktif! 🚀💰")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -261,9 +264,10 @@ def run_esit_sepet_motoru():
     if usdt < min_usdt_siniri:
         return
 
+    # Kasayı tam bölüştürerek sadece sepet payı kadar alım yapıyoruz
     esit_butce = round(usdt / len(SEPET_COINLERI), 2)
     if esit_butce < min_usdt_siniri:
-        esit_butce = round(usdt, 2) # Eğer bütçe bölünmeye yetmiyorsa tamamıyla tek pariteye gir
+        esit_butce = round(usdt, 2)
 
     if not AKTIF_ISLEMLER:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
@@ -277,10 +281,10 @@ def run_esit_sepet_motoru():
                 "rsi_anlik": "54.2",
                 "rsi_hedef": "68.0",
                 "butce": esit_butce,
-                "durum": "🟢 Tam Bütçe Sepet İşlemde"
+                "durum": "🟢 Eşit Sepet Payı İşlemde"
             })
-            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe: {esit_butce} USDT")
-            send_telegram_message(ADMIN_ID, f"🟢 *Oto Bot Tam Bütçe Alım Gerçekleşti!* `BTC-USDT` paritesine `{esit_butce} USDT` (`₺{esit_butce * dolar:.2f}`) bütçe ayrıldı! Giriş: `${btc:,.2f}` 🚀")
+            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Pay Bütçe: {esit_butce} USDT")
+            send_telegram_message(ADMIN_ID, f"🟢 *Oto Bot Eşit Sepet Alımı:* `BTC-USDT` paritesine sepet payı (`{esit_butce} USDT`) ayrıldı! Giriş: `${btc:,.2f}` 🚀")
         return
 
     islem = AKTIF_ISLEMLER[0]
@@ -324,7 +328,7 @@ def background_worker():
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "🟢 *Sistem Durumu:* Tam Bütçe Akıllı Sepet Aktif!\n\n"
+                        "🟢 *Sistem Durumu:* Eşit Dağılımlı Akıllı Sepet Aktif!\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
                         f"💎 *Toplam Portföy:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)\n"
                     )
@@ -368,7 +372,7 @@ def background_worker():
                             send_telegram_message(chat_id, welcome_msg)
                         elif text_lower.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            send_telegram_message(chat_id, "🟢 Tam Bütçe Eşit Dağılımlı Sepet Motoru Çalıştırıldı! 🚀💰")
+                            send_telegram_message(chat_id, "🟢 Eşit Dağılımlı Sepet Motoru Çalıştırıldı! 🚀💰")
                         elif text_lower.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")

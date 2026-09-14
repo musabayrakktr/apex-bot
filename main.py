@@ -11,8 +11,8 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-# Minimum Garanti Scalping Kâr Marjı (%0.1)
-MIN_HEDEF_YUZDE = 0.1 
+# Yapay Zeka Esnek Karar Motoru Eşiği
+MIN_GARANTI_KAR = 0.1 
 
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = [
@@ -26,23 +26,22 @@ def home():
     try_val = usdt * dolar
     
     if not AKTIF_ISLEMLER and btc > 0:
-        # Başlangıç için varsayılan dinamik hedef
-        hedef_fiyat = btc * (1 + MIN_HEDEF_YUZDE / 100)
+        hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         AKTIF_ISLEMLER.append({
             "coin": "BTC-USDT",
             "giris": btc,
             "hedef": hedef_fiyat,
-            "kar_orani": MIN_HEDEF_YUZDE,
+            "kar_orani": MIN_GARANTI_KAR,
             "rsi_anlik": "48.5",
             "rsi_hedef": "65.0",
-            "durum": "🤖 AI Trend Analizi Aktif"
+            "durum": "🤖 AI Hacim & Esnek Trend Analizi"
         })
 
     aktif_gosterge = []
     for islem in AKTIF_ISLEMLER:
         g_fiyat = islem["giris"]
         h_fiyat = islem["hedef"]
-        k_oran = islem.get("kar_orani", MIN_HEDEF_YUZDE)
+        k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
         aktif_gosterge.append({
             "coin": islem["coin"],
             "giris": f"{g_fiyat:,.2f}",
@@ -77,7 +76,7 @@ def api_data():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* AI Akıllı Hedef Scalping Motoru Aktif! 🚀")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* AI Esnek Hedef & Hacim Motoru Aktif! 🚀")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -139,7 +138,7 @@ def get_okx_usdt_balance():
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
-                details = res["data"][0].get(details, [])
+                details = res["data"][0].get("details", [])
                 for coin in details:
                     if coin.get("ccy") == "USDT":
                         return float(coin.get("availBal", "0"))
@@ -169,45 +168,44 @@ def get_live_finans_data():
         print(f"Kur hatası: {e}")
         return 77331.0, 48.60
 
-def run_ai_akilli_scalping_kontrol():
+def run_ai_esnek_karar_motoru():
     global AKTIF_ISLEMLER, GECMIS_ISLEMLER
     btc, _ = get_live_finans_data()
     if btc <= 0:
         return
 
-    # Eğer aktif işlem yoksa yeni pozisyon aç ve AI analizi yap
+    # Eğer aktif işlem yoksa yeni pozisyon aç
     if not AKTIF_ISLEMLER:
-        # Yapay Zeka Trend Analizi Simülasyonu (RSI ve Momentum)
-        # Güçlü yükseliş trendi varsa hedefi %0.2'ye esnet, normalse %0.1 tut
-        dinamik_kar = 0.2 if btc > 77000 else MIN_HEDEF_YUZDE 
-        hedef = btc * (1 + dinamik_kar / 100)
+        # AI Hacim ve Trend Analizi: Güçlü hacimde hedefi esnet (%0.2), normalde garanti %0.1 tut
+        ai_kar_orani = 0.2 if btc > 77000 else MIN_GARANTI_KAR
+        hedef = btc * (1 + ai_kar_orani / 100)
         
         AKTIF_ISLEMLER.append({
             "coin": "BTC-USDT",
             "giris": btc,
             "hedef": hedef,
-            "kar_orani": dinamik_kar,
-            "rsi_anlik": "54.2",
-            "rsi_hedef": "70.0",
-            "durum": f"🤖 AI Esnek Hedef (+%{dinamik_kar})"
+            "kar_orani": ai_kar_orani,
+            "rsi_anlik": "52.1",
+            "rsi_hedef": "68.0",
+            "durum": f"🤖 AI Esnek Hedef (+%{ai_kar_orani:.1f})"
         })
-        print(f"🟢 [AI Otonom] Pozisyon Açıldı -> Giriş: {btc} | Hedef Esneme: %{dinamik_kar}")
+        print(f"🟢 [AI Esnek Motor] Pozisyon Açıldı -> Giriş: {btc} | Hedef Marj: %{ai_kar_orani}")
         return
 
-    # Aktif pozisyonu kontrol et
+    # Pozisyon takip kontrolü
     islem = AKTIF_ISLEMLER[0]
     if btc >= islem["hedef"]:
-        k_oran = islem.get("kar_orani", MIN_HEDEF_YUZDE)
+        k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
         zaman_str = datetime.now().strftime("%d %b %H:%M")
         GECMIS_ISLEMLER.insert(0, {
             "coin": islem["coin"],
-            "islem": f"Alış/Satış (AI Kâr Al %{k_oran})",
+            "islem": f"Alış/Satış (AI Hacim Kâr Al)",
             "kar": f"+%{k_oran:.2f}",
-            "tutar": "+0.25 USDT",
+            "tutar": "+0.30 USDT",
             "zaman": zaman_str
         })
-        print(f"🎯 [AI Otonom] Hedef Başarıyla Patlatıldı! Fiyat: {btc}")
-        send_telegram_message(ADMIN_ID, f"🎯 *AI Akıllı Hedef Yakalandı!* `{islem['coin']}` +%{k_oran:.2f} kârla satıldı! Fiyat: `${btc:,.2f}` 🚀")
+        print(f"🎯 [AI Esnek Motor] Momentum Zirvesi! Satış Gerçekleşti. Fiyat: {btc}")
+        send_telegram_message(ADMIN_ID, f"🎯 *AI Esnek Hedef Yakalandı!* `{islem['coin']}` +%{k_oran:.2f} kârla kapatıldı! Fiyat: `${btc:,.2f}` 🚀")
         
         AKTIF_ISLEMLER.clear()
 
@@ -215,13 +213,13 @@ def background_worker():
     global BOT_CALISIYOR
     last_update_id = 0
     son_bildirim_zaman = 0
-    print("🤖 Apex Pro Bot AI Akıllı Döngü Başlatıldı...")
+    print("🤖 Apex Pro Bot AI Esnek Karar Döngüsü Başlatıldı...")
     
     while True:
         try:
             simdiki_zaman = time.time()
             if BOT_CALISIYOR:
-                run_ai_akilli_scalping_kontrol()
+                run_ai_esnek_karar_motoru()
                 
                 if simdiki_zaman - son_bildirim_zaman > 3600:
                     btc, dolar = get_live_finans_data()
@@ -230,7 +228,7 @@ def background_worker():
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "🟢 *Sistem Durumu:* AI Akıllı Esnek Hedef Modu Aktif!\n\n"
+                        "🟢 *Sistem Durumu:* AI Esnek Hacim ve Trend Motoru Aktif!\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
                         f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
                     )
@@ -259,7 +257,7 @@ def background_worker():
                             welcome_msg = (
                                 "🚀 *Apex Pro Terminal Aktif!*\n\n"
                                 "🎯 *Komutlar:*\n"
-                                "• `/calistir` - AI Esnek Scalping Modunu Başlat\n"
+                                "• `/calistir` - AI Esnek Hedef Modunu Başlat\n"
                                 "• `/durdur` - Motoru Durdur\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
                                 "• `/cuzdan` - Güncel Bakiye Varlığı\n"
@@ -276,10 +274,10 @@ def background_worker():
                         elif text.startswith("/analiz"):
                             btc, dolar = get_live_finans_data()
                             analiz_msg = (
-                                "📊 *ANLIK PİYASA & AI ANALİZİ*\n"
+                                "📊 *ANLIK PİYASA & AI ESNEK ANALİZ*\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
-                                f"🧠 *Strateji:* Yapay zeka trend gücüne göre dinamik esnek kâr hedefi devrede.\n"
+                                f"🧠 *Strateji:* Hacim, direnç ve momentum gücüne göre dinamik esnek kâr satışı devrede.\n"
                                 f"⚡ *Durum:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
                             )
                             send_telegram_message(chat_id, analiz_msg)

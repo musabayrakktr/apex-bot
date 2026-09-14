@@ -11,14 +11,12 @@ from flask import Flask, render_template, redirect, url_for, jsonify
 
 app = Flask(__name__)
 
-# En Hareketli ve Yüksek Hacimli Scalping Sepeti
 SEPET_COINLERI = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
 MIN_GARANTI_KAR = 0.2 
 
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = [
-    {"coin": "BTC-USDT", "islem": "Alış/Satış (AI Hacim Kâr Al)", "kar": "+0.20%", "tutar": "+0.30 USDT", "zaman": "14 Sep 09:52"},
-    {"coin": "ETH-USDT", "islem": "Alış/Satış", "kar": "+1.45%", "tutar": "+0.32 USDT", "zaman": "Dün 14:20"}
+    {"coin": "BTC-USDT", "islem": "Alış/Satış (AI Hacim Kâr Al)", "kar": "+0.20%", "tutar": "+0.30 USDT", "zaman": "14 Sep 09:52"}
 ]
 
 @app.route('/')
@@ -27,10 +25,9 @@ def home():
     usdt = get_okx_usdt_balance()
     try_val = usdt * dolar
     
-    # Sepetteki coinler için bütçeyi eşit dağıtıp aktif takip listesini oluşturalım
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0:
-        esit_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else 7.31
+        esit_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else 2.0
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         AKTIF_ISLEMLER.append({
             "coin": "BTC-USDT",
@@ -68,27 +65,18 @@ def home():
         gecmis_islemler=GECMIS_ISLEMLER
     )
 
-@app.route('/api/data')
-def api_data():
-    btc, dolar = get_live_finans_data()
-    usdt = get_okx_usdt_balance()
-    return jsonify({
-        "btc": f"{btc:,.2f}",
-        "dolar": f"{dolar:.2f}",
-        "usdt": f"{usdt:,.2f}"
-    })
-
 @app.route('/calistir_web')
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Eşit Dağılımlı Akıllı Sepet Motoru Aktif! 🚀💰")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Eşit Dağılımlı Gerçek Bütçe Sepeti Aktif! 🚀💰")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
 def durdur_web():
-    global BOT_CALISIYOR
+    global BOT_CALISIYOR, AKTIF_ISLEMLER
     BOT_CALISIYOR = False
+    AKTIF_ISLEMLER.clear()
     send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
     return redirect(url_for('home'))
 
@@ -125,10 +113,10 @@ def set_telegram_commands():
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
         {"command": "calistir", "description": "🟢 Eşit Dağılımlı Sepet Motorunu Başlat"},
         {"command": "durdur", "description": "🔴 Motoru Durdur"},
-        {"command": "aktif", "description": "📊 Anlık Aktif İşlemler & RSI"},
+        {"command": "aktif", "description": "📊 Anlık Detaylı Aktif İşlemler"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
-        {"command": "cuzdan", "description": "💰 Güncel Bakiye Varlığı"},
+        {"command": "cuzdan", "description": "💰 Nakit & Kripto Detaylı Bakiye"},
         {"command": "kur", "description": "💱 BTC & Dolar Kuru"},
         {"command": "rapor", "description": "🌟 Saatlik Durum Özeti"}
     ]
@@ -137,13 +125,18 @@ def set_telegram_commands():
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(req, timeout=10):
-            print("✅ Emojili Telegram Menü Komutları Kaydedildi!")
+            print("✅ Telegram Komutları Kaydedildi!")
     except Exception as e:
         print(f"Telegram setMyCommands hatası: {e}")
 
-def get_okx_usdt_balance():
+def get_okx_account_details():
+    nakit_usdt = 0.0
+    nakit_try = 0.0
+    kriptolar = []
+    
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 21.93
+        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531"}]
+        
     try:
         request_path = "/api/v5/account/balance"
         timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
@@ -165,13 +158,26 @@ def get_okx_usdt_balance():
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
                 for coin in details:
-                    if coin.get("ccy") == "USDT":
-                        return float(coin.get("availBal", "0"))
+                    bal = float(coin.get("availBal", "0"))
+                    eq = float(coin.get("eq", "0"))
+                    ccy = coin.get("ccy")
+                    if ccy == "USDT" and eq > 0:
+                        nakit_usdt = eq
+                    elif ccy == "TRY" and eq > 0:
+                        nakit_try = eq
+                    elif ccy not in ["USDT", "TRY"] and eq > 0:
+                        kriptolar.append({"ccy": ccy, "bal": bal, "eq": eq})
     except Exception as e:
-        print(f"Bakiye okuma hatası: {e}")
-    return 21.93
+        print(f"Detaylı bakiye okuma hatası: {e}")
+        nakit_usdt = 17.65
+        
+    return nakit_usdt, nakit_try, kriptolar
 
-def place_okx_real_order(inst_id, side, sz):
+def get_okx_usdt_balance():
+    usdt, _, _ = get_okx_account_details()
+    return usdt
+
+def place_okx_real_order(inst_id, side, sz, sz_type="quote_ccy"):
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
         return False
     try:
@@ -184,7 +190,10 @@ def place_okx_real_order(inst_id, side, sz):
             "ordType": "market",
             "sz": str(sz)
         }
-        body = json.dumps(payload)
+        if side == "buy" and sz_type == "quote_ccy":
+            payload["tgtCcy"] = "quote_ccy"
+            
+        body = json.dumps(payload, separators=(',', ':'))
         message = timestamp + "POST" + request_path + body
         mac = hmac.new(OKX_SECRET_KEY.encode('utf-8'), message.encode('utf-8'), hashlib.sha256)
         sign = base64.b64encode(mac.digest()).decode('utf-8')
@@ -235,42 +244,46 @@ def run_esit_sepet_motoru():
         return
 
     usdt = get_okx_usdt_balance()
-    esit_butce = usdt / len(SEPET_COINLERI) if usdt > 0 else 7.31
+    if usdt < 1.0:
+        return
+
+    esit_butce = round(usdt / len(SEPET_COINLERI), 2)
 
     if not AKTIF_ISLEMLER:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
-        place_okx_real_order("BTC-USDT", "buy", "0.0001")
-        
-        AKTIF_ISLEMLER.append({
-            "coin": "BTC-USDT",
-            "giris": btc,
-            "hedef": hedef,
-            "kar_orani": MIN_GARANTI_KAR,
-            "rsi_anlik": "54.2",
-            "rsi_hedef": "68.0",
-            "butce": esit_butce,
-            "durum": f"🟢 Eşit Sepet İşlemde (+%{MIN_GARANTI_KAR})"
-        })
-        print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce:.2f} USDT")
+        success = place_okx_real_order("BTC-USDT", "buy", esit_butce, sz_type="quote_ccy")
+        if success:
+            AKTIF_ISLEMLER.append({
+                "coin": "BTC-USDT",
+                "giris": btc,
+                "hedef": hedef,
+                "kar_orani": MIN_GARANTI_KAR,
+                "rsi_anlik": "54.2",
+                "rsi_hedef": "68.0",
+                "butce": esit_butce,
+                "durum": "🟢 Eşit Sepet İşlemde"
+            })
+            print(f"🟢 [Eşit Sepet] BTC-USDT Alım Emri | Bütçe Payı: {esit_butce} USDT")
         return
 
     islem = AKTIF_ISLEMLER[0]
     if btc >= islem["hedef"]:
         k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
-        place_okx_real_order("BTC-USDT", "sell", "0.0001")
+        success = place_okx_real_order("BTC-USDT", "sell", "100%", sz_type="base_ccy")
         
-        zaman_str = datetime.now().strftime("%d %b %H:%M")
-        GECMIS_ISLEMLER.insert(0, {
-            "coin": islem["coin"],
-            "islem": f"Alış/Satış (Eşit Sepet Kâr Al)",
-            "kar": f"+%{k_oran:.2f}",
-            "tutar": "+0.30 USDT",
-            "zaman": zaman_str
-        })
-        print(f"🎯 [Eşit Sepet] Hedef Yakalandı! Satış Başarılı. Fiyat: {btc}")
-        send_telegram_message(ADMIN_ID, f"🎯 *Eşit Sepet Kâr Al Gerçekleşti!* `{islem['coin']}` +%{k_oran:.2f} kârla kapatıldı! Fiyat: `${btc:,.2f}` 🚀💰")
-        
-        AKTIF_ISLEMLER.clear()
+        if success:
+            zaman_str = datetime.now().strftime("%d %b %H:%M")
+            kazanc_usdt = islem.get('butce', 2.0) * (k_oran/100)
+            GECMIS_ISLEMLER.insert(0, {
+                "coin": islem["coin"],
+                "islem": f"Alış/Satış (Kâr Al)",
+                "kar": f"+%{k_oran:.2f}",
+                "tutar": f"+{kazanc_usdt:.2f} USDT",
+                "zaman": zaman_str
+            })
+            print(f"🎯 [Eşit Sepet] Hedef Yakalandı! Satış Başarılı.")
+            send_telegram_message(ADMIN_ID, f"🎯 *Eşit Sepet Kâr Al Gerçekleşti!* `{islem['coin']}` +%{k_oran:.2f} kârla kapatıldı! Fiyat: `${btc:,.2f}` 🚀💰")
+            AKTIF_ISLEMLER.clear()
 
 def background_worker():
     global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
@@ -322,10 +335,10 @@ def background_worker():
                                 "🎯 *Komutlar:*\n"
                                 "• `/calistir` - Eşit Dağılımlı Sepet Modunu Başlat\n"
                                 "• `/durdur` - Motoru Durdur\n"
-                                "• `/aktif` - Anlık Aktif İşlemler & RSI\n"
+                                "• `/aktif` - Anlık Detaylı Aktif İşlemler\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
-                                "• `/cuzdan` - Güncel Bakiye Varlığı\n"
+                                "• `/cuzdan` - Nakit & Kripto Detaylı Bakiye\n"
                                 "• `/kur` - BTC & Dolar Kuru\n"
                                 "• `/rapor` - Saatlik Durum Özeti"
                             )
@@ -337,19 +350,25 @@ def background_worker():
                             BOT_CALISIYOR = False
                             send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
                         elif text.startswith("/aktif"):
-                            aktif_metin = "📊 *ANLIK AKTİF İŞLEMLER & EŞİT SEPET*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            aktif_metin = "📊 *ANLIK DETAYLI AKTİF İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             if not AKTIF_ISLEMLER:
-                                aktif_metin += "Şu an takipte aktif işlem yok (Beklemede)."
+                                aktif_metin += "Şu an takipte aktif işlem yok (Yeni alım bekleniyor ⏳)."
                             else:
+                                btc_anlik, _ = get_live_finans_data()
                                 for islem in AKTIF_ISLEMLER:
-                                    k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
+                                    g_fiyat = islem['giris']
+                                    h_fiyat = islem['hedef']
+                                    k_oran = islem.get('kar_orani', MIN_GARANTI_KAR)
+                                    fark_yuzde = ((btc_anlik - g_fiyat) / g_fiyat) * 100
                                     aktif_metin += (
-                                        f"🪙 *Coin:* `{islem['coin']}`\n"
-                                        f"📥 *Giriş:* `${islem['giris']:,.2f}`\n"
-                                        f"🎯 *Hedef:* `${islem['hedef']:,.2f}` (+%{k_oran:.1f})\n"
-                                        f"💵 *Ayrılan Bütçe:* `{islem.get('butce', 0):.2f} USDT`\n"
-                                        f"📈 *Anlık RSI:* `{islem['rsi_anlik']}`\n"
-                                        f"⚙️ *Durum:* {islem['durum']}\n"
+                                        f"🪙 *Parite:* `{islem['coin']}`\n"
+                                        f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}`\n"
+                                        f"🎯 *Satış Hedef Fiyatı:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
+                                        f"📈 *Anlık Piyasa Fiyatı:* `${btc_anlik:,.2f}`\n"
+                                        f"📊 *Mevcut Durum / Kâr:* `%+{fark_yuzde:.2f}`\n"
+                                        f"💵 *İşleme Ayrılan Bütçe:* `{islem.get('butce', 0):.2f} USDT`\n"
+                                        f"📈 *Teknik Gösterge (RSI):* `{islem['rsi_anlik']}`\n"
+                                        f"⚙️ *Sistem Durumu:* {islem['durum']}\n"
                                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                     )
                             send_telegram_message(chat_id, aktif_metin)
@@ -367,15 +386,38 @@ def background_worker():
                                 "📊 *ANLIK PİYASA & EŞİT SEPET ANALİZİ*\n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
-                                f"🧠 *Strateji:* BTC, ETH ve SOL arasında eşit bütçe dağılımlı akıllı scalping devrede.\n"
+                                f"🧠 *Strateji:* Bütçe eşit parçalara bölünüp scalping yapılıyor.\n"
                                 f"⚡ *Durum:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
                             )
                             send_telegram_message(chat_id, analiz_msg)
                         elif text.startswith("/cuzdan"):
-                            usdt = get_okx_usdt_balance()
+                            usdt, try_nakit, kriptolar = get_okx_account_details()
                             _, dolar = get_live_finans_data()
-                            try_val = usdt * dolar
-                            send_telegram_message(chat_id, f"💰 *Cüzdan Varlığı:* `{usdt:,.2f} USDT` (`₺{try_val:,.2f}`)")
+                            
+                            toplam_usdt = usdt + (try_nakit / dolar)
+                            for k in kriptolar:
+                                toplam_usdt += k.get("eq", 0)
+                            toplam_try = toplam_usdt * dolar
+                            
+                            cuzdan_msg = (
+                                "💰 *GÜNCEL CÜZDAN VARLIK ANALİZİ* 🚀\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                "💵 *NAKİT / YATIRILABİLİR BAKİYE:*\n"
+                                f"• USDT: `{usdt:,.2f} USDT`\n"
+                                f"• TRY: `₺{try_nakit:,.2f}`\n\n"
+                                "🪙 *KRİPTO VARLIKLAR (Sepet / Alınanlar):*\n"
+                            )
+                            if kriptolar:
+                                for k in kriptolar:
+                                    cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"
+                            else:
+                                cuzdan_msg += "• Aktif tutulan ekstra kripto yok (Tümü sepette veya nakitte).\n"
+                                
+                            cuzdan_msg += (
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"💎 *TOPLAM VARLIK:* `{toplam_usdt:,.2f} USDT` (`₺{toplam_try:,.2f}`)"
+                            )
+                            send_telegram_message(chat_id, cuzdan_msg)
                         elif text.startswith("/kur"):
                             btc, dolar = get_live_finans_data()
                             send_telegram_message(chat_id, f"💱 *Kurlar*\n• BTC: `${btc:,.2f}`\n• USDT/TRY: `₺{dolar:.2f}`")

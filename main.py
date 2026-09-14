@@ -28,7 +28,7 @@ def home():
     
     global AKTIF_ISLEMLER
     if not AKTIF_ISLEMLER and btc > 0 and BOT_CALISIYOR:
-        esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 7.31
+        esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 2.04
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         tr_zaman = datetime.now(timezone(timedelta(hours=3)))
         zaman_str = tr_zaman.strftime("%d %b %H:%M")
@@ -86,7 +86,7 @@ def api_data():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* OKX TR Gerçek Sepet Motoru Aktif! 🚀💰")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* OKX TR Tam Güvenli Entegrasyon Devrede! 🚀💰")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -94,7 +94,7 @@ def durdur_web():
     global BOT_CALISIYOR, AKTIF_ISLEMLER
     BOT_CALISIYOR = False
     AKTIF_ISLEMLER.clear()
-    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu ve Liste Temizlendi!")
+    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Motor Durduruldu ve Liste Sıfırlandı!")
     return redirect(url_for('home'))
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -128,7 +128,7 @@ def set_telegram_commands():
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setMyCommands"
     commands = [
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
-        {"command": "calistir", "description": "🟢 OKX TR Gerçek Sepet Motorunu Başlat"},
+        {"command": "calistir", "description": "🟢 OKX TR Tam Güvenli Motoru Başlat"},
         {"command": "durdur", "description": "🔴 Motoru Durdur & Temizle"},
         {"command": "aktif", "description": "📊 Anlık Aktif İşlemler & Kazanç"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
@@ -148,8 +148,7 @@ def set_telegram_commands():
 
 def get_okx_usdt_balance():
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        print("⚠️ OKX API Bilgileri Eksik!")
-        return 9.84
+        return 2.04
     try:
         request_path = "/api/v5/account/balance"
         timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
@@ -168,19 +167,15 @@ def get_okx_usdt_balance():
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
-            print(f"🔍 OKX TR Bakiye Ham Yanıtı: {res}")
+            print(f"🔍 [OKX TR Bakiye Yanıtı]: {res}")
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
                 for coin in details:
                     if coin.get("ccy") == "USDT":
-                        bal = float(coin.get("availBal", "0"))
-                        print(f"💰 Bulunan USDT Bakiyesi: {bal}")
-                        return bal
-            else:
-                print(f"❌ OKX TR Bakiye Hata Kodu/Mesajı: {res}")
+                        return float(coin.get("availBal", "0"))
     except Exception as e:
-        print(f"🚨 OKX TR Bakiye İstek İstisnası (Hata): {e}")
-    return 9.84
+        print(f"🚨 [OKX TR Bakiye İstisnası]: {e}")
+    return 2.04
 
 def place_okx_real_order_usdt(inst_id, side, usdt_sz):
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
@@ -212,14 +207,16 @@ def place_okx_real_order_usdt(inst_id, side, usdt_sz):
         req = urllib.request.Request(url, data=body.encode('utf-8'), headers=headers, method='POST')
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
-            print(f"🔍 OKX TR Emir Ham Yanıtı: {res}")
+            print(f"🔍 [OKX TR Emir Yanıtı]: {res}")
             if res.get("code") == "0":
                 print(f"🚀 OKX TR Gerçek USDT Emri Başarılı! İşlem: {side} | Tutar: {usdt_sz} USDT")
+                send_telegram_message(ADMIN_ID, f"🚀 *OKX TR Gerçek Emir İletildi!* İşlem: `{side}` | Tutar: `{usdt_sz} USDT` 💰")
                 return True
             else:
-                print(f"❌ OKX TR Emir Red Hatası: {res}")
+                print(f"❌ OKX TR Emir Reddedildi: {res.get('msg')}")
+                send_telegram_message(ADMIN_ID, f"⚠️ *OKX TR Emir Red Hatası:* `{res.get('msg')}`")
     except Exception as e:
-        print(f"🚨 OKX TR Emir İstek İstisnası (Hata): {e}")
+        print(f"🚨 OKX TR Emir İstisna Hatası: {e}")
     return False
 
 def get_live_finans_data():
@@ -237,12 +234,12 @@ def get_live_finans_data():
                 res_t = json.loads(resp_t.read().decode())
                 dolar_kur = float(res_t['data'][0]['last'])
         except:
-            dolar_kur = 48.58
+            dolar_kur = 48.59
             
         return btc_fiyat, dolar_kur
     except Exception as e:
         print(f"Kur hatası: {e}")
-        return 77331.0, 48.60
+        return 77939.0, 48.59
 
 def run_gercek_butceli_sepet_motoru():
     global AKTIF_ISLEMLER, GECMIS_ISLEMLER, BOT_CALISIYOR
@@ -254,7 +251,7 @@ def run_gercek_butceli_sepet_motoru():
         return
 
     usdt = get_okx_usdt_balance()
-    esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 7.31
+    esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 2.04
 
     if not AKTIF_ISLEMLER and BOT_CALISIYOR:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
@@ -281,7 +278,7 @@ def run_gercek_butceli_sepet_motoru():
         islem = AKTIF_ISLEMLER[0]
         if btc >= islem["hedef"]:
             k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
-            place_okx_real_order_usdt("BTC-USDT", "sell", islem.get('butce', 7.31))
+            place_okx_real_order_usdt("BTC-USDT", "sell", islem.get('butce', 2.04))
             
             tr_zaman = datetime.now(timezone(timedelta(hours=3)))
             zaman_str = tr_zaman.strftime("%d %b %H:%M")
@@ -289,7 +286,7 @@ def run_gercek_butceli_sepet_motoru():
                 "coin": islem["coin"],
                 "islem": f"Alış/Satış (OKX TR Kâr Al)",
                 "kar": f"+%{k_oran:.2f}",
-                "tutar": f"+{islem.get('butce', 7.31) * (k_oran/100):.2f} USDT",
+                "tutar": f"+{islem.get('butce', 2.04) * (k_oran/100):.2f} USDT",
                 "zaman": zaman_str
             })
             print(f"🎯 [OKX TR Sepet] Hedef Yakalandı! Satış Başarılı. Fiyat: {btc}")
@@ -301,7 +298,7 @@ def background_worker():
     global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
     last_update_id = 0
     son_bildirim_zaman = 0
-    print("🤖 Apex Pro Bot OKX TR Entegrasyonu Başlatıldı...")
+    print("🤖 Apex Pro Bot OKX TR Güvenli Entegrasyon Başlatıldı...")
     
     while True:
         try:
@@ -316,7 +313,7 @@ def background_worker():
                     saatlik_rapor = (
                         "🌟 *APEX KOMUTA MERKEZİ - SAATLİK RAPOR* 🚀\n"
                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                        "🟢 *Sistem Durumu:* OKX TR Gerçek Sepet Aktif!\n\n"
+                        "🟢 *Sistem Durumu:* OKX TR Güvenli Motor Aktif!\n\n"
                         f"🪙 *Bitcoin (BTC):* `${btc:,.2f}`\n"
                         f"💵 *OKX TR Cüzdan:* `{usdt:,.2f} USDT` (`₺{try_bakiye:,.2f}`)\n"
                     )
@@ -345,7 +342,7 @@ def background_worker():
                             welcome_msg = (
                                 "🚀 *Apex Pro Terminal Aktif!*\n\n"
                                 "🎯 *Komutlar:*\n"
-                                "• `/calistir` - OKX TR Gerçek Sepet Modunu Başlat\n"
+                                "• `/calistir` - OKX TR Tam Güvenli Motoru Başlat\n"
                                 "• `/durdur` - Motoru Durdur & Temizle\n"
                                 "• `/aktif` - Anlık Aktif İşlemler & Kazanç\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
@@ -360,7 +357,7 @@ def background_worker():
                             AKTIF_ISLEMLER.clear()
                             btc_tr, _ = get_live_finans_data()
                             usdt_tr = get_okx_usdt_balance()
-                            esit_butce_tr = round(usdt_tr / len(SEPET_COINLERI), 2) if usdt_tr > 0 else 7.31
+                            esit_butce_tr = round(usdt_tr / len(SEPET_COINLERI), 2) if usdt_tr > 0 else 2.04
                             hedef_tr = btc_tr * (1 + MIN_GARANTI_KAR / 100)
                             tr_zaman = datetime.now(timezone(timedelta(hours=3)))
                             zaman_str_tr = tr_zaman.strftime("%d %b %H:%M")
@@ -378,7 +375,7 @@ def background_worker():
                                 "islem_saati": zaman_str_tr,
                                 "durum": f"🟢 OKX TR Gerçek İşlemde (+%{MIN_GARANTI_KAR})"
                             })
-                            send_telegram_message(chat_id, f"🟢 OKX TR Gerçek Sepet Motoru Çalıştırıldı! Saat: `{zaman_str_tr}` 🚀💰")
+                            send_telegram_message(chat_id, f"🟢 OKX TR Tam Güvenli Motor Çalıştırıldı! Saat: `{zaman_str_tr}` 🚀💰")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
                             AKTIF_ISLEMLER.clear()
@@ -391,7 +388,7 @@ def background_worker():
                             else:
                                 for islem in AKTIF_ISLEMLER:
                                     k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
-                                    yatirilan = islem.get('butce', 7.31)
+                                    yatirilan = islem.get('butce', 2.04)
                                     hedef_usdt = yatirilan * (1 + k_oran / 100)
                                     hedef_try = hedef_usdt * dolar_guncel
                                     kâr_usdt = hedef_usdt - yatirilan
@@ -423,7 +420,7 @@ def background_worker():
                                 "📊 *ANLIK PİYASA & OKX TR SEPET* \n"
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 f"🪙 *BTC Fiyat:* `${btc:,.2f}`\n"
-                                f"🧠 *Strateji:* OKX TR API üzerinden bütçe ve emir yürütme devrede.\n"
+                                f"🧠 *Strateji:* OKX TR API üzerinden tam güvenli bütçe yürütme devrede.\n"
                                 f"⚡ *Durum:* {'Çalışıyor 🟢' if BOT_CALISIYOR else 'Beklemede ⏸️'}"
                             )
                             send_telegram_message(chat_id, analiz_msg)

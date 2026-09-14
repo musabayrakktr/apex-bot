@@ -167,6 +167,7 @@ def get_okx_usdt_balance():
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
+            print(f"🔍 OKX TR Bakiye Yanıtı: {res}") # Hata ayıklama için konsola basıyoruz
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
                 for coin in details:
@@ -206,6 +207,7 @@ def place_okx_real_order_usdt(inst_id, side, usdt_sz):
         req = urllib.request.Request(url, data=body.encode('utf-8'), headers=headers, method='POST')
         with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
+            print(f"🔍 OKX TR Emir Yanıtı: {res}") # Hata ayıklama için konsola basıyoruz
             if res.get("code") == "0":
                 print(f"🚀 OKX TR Gerçek USDT Emri Başarılı! İşlem: {side} | Tutar: {usdt_sz} USDT")
                 return True
@@ -350,7 +352,6 @@ def background_worker():
                             send_telegram_message(chat_id, welcome_msg)
                         elif text.startswith("/calistir"):
                             BOT_CALISIYOR = True
-                            # Tetiklendiği an sıfırdan taze işlem açması için listeyi temizleyip güncel saat basıyoruz
                             AKTIF_ISLEMLER.clear()
                             btc_tr, _ = get_live_finans_data()
                             usdt_tr = get_okx_usdt_balance()

@@ -15,7 +15,6 @@ SEPET_COINLERI = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
 MIN_GARANTI_KAR = 0.2 
 MIN_ISLEM_TL = 250.0  # Borsa minimum işlem sınırı (250 TL)
 
-# Artık her coini ayrı ayrı takip edebilmek için liste yapısını tam sepetli uyarlıyoruz
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = []
 
@@ -28,26 +27,28 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     
-    # Eğer aktif işlem yoksa ve kasa yetiyorsa, sepetin TÜM coinlerine parayı eşit bölüştürerek alım yapalım
+    # Kasanın tamamını tek coine gömmek yerine sepet coinlerine eşit paylaştırıyoruz
     if not AKTIF_ISLEMLER and usdt >= min_usdt_siniri:
         esit_butce = round(usdt / len(SEPET_COINLERI), 2)
-        if esit_butce >= min_usdt_siniri:
-            for parite in SEPET_COINLERI:
-                g_fiyat = get_parite_fiyat(parite)
-                if g_fiyat > 0:
-                    success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
-                    if success:
-                        hedef_fiyat = g_fiyat * (1 + MIN_GARANTI_KAR / 100)
-                        AKTIF_ISLEMLER.append({
-                            "coin": parite,
-                            "giris": g_fiyat,
-                            "hedef": hedef_fiyat,
-                            "kar_orani": MIN_GARANTI_KAR,
-                            "rsi_anlik": "52.1",
-                            "rsi_hedef": "68.0",
-                            "butce": esit_butce,
-                            "durum": f"🤖 Çoklu Sepet (%{MIN_GARANTI_KAR})"
-                        })
+        if esit_butce < min_usdt_siniri:
+            esit_butce = round(usdt, 2)
+            
+        for parite in SEPET_COINLERI:
+            p_fiyat = get_parite_fiyat(parite)
+            if p_fiyat > 0:
+                success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
+                if success:
+                    hedef_fiyat = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
+                    AKTIF_ISLEMLER.append({
+                        "coin": parite,
+                        "giris": p_fiyat,
+                        "hedef": hedef_fiyat,
+                        "kar_orani": MIN_GARANTI_KAR,
+                        "rsi_anlik": "52.1",
+                        "rsi_hedef": "68.0",
+                        "butce": esit_butce,
+                        "durum": f"🤖 Çoklu Akıllı Sepet (%{MIN_GARANTI_KAR})"
+                    })
 
     aktif_gosterge = []
     for islem in AKTIF_ISLEMLER:
@@ -78,7 +79,7 @@ def home():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
-    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Çoklu Akıllı Sepet Motoru Aktif! 🚀💰")
+    send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* Çoklu Akıllı Sepet Aktif! 🚀💰")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
@@ -168,7 +169,7 @@ def get_okx_account_details():
             res = json.loads(response.read().decode())
             if res.get("code") == "0" and res.get("data"):
                 details = res["data"][0].get("details", [])
-                btc_fiyat, _ = get_live_finans_data()
+                btc_fiyat = get_parite_fiyat("BTC-USDT")
                 
                 for coin in details:
                     bal = float(coin.get("availBal", "0"))
@@ -178,10 +179,7 @@ def get_okx_account_details():
                         nakit_usdt = float(coin.get("cashBal", bal))
                     elif ccy == "TRY":
                         nakit_try = float(coin.get("cashBal", bal))
-                    elif ccy == "BTC" and bal > 0.000001:
-                        usdt_deger = bal * btc_fiyat
-                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.8f}", "usdt": usdt_deger})
-                    elif ccy in ["ETH", "SOL"] and bal > 0.0001:
+                    elif ccy in ["BTC", "ETH", "SOL"] and bal > 0.000001:
                         p_fiyat = get_parite_fiyat(f"{ccy}-USDT")
                         kriptolar.append({"ccy": ccy, "bal": f"{bal:.6f}", "usdt": bal * p_fiyat})
                     elif ccy not in ["USDT", "TRY"] and bal > 0.001:
@@ -271,33 +269,7 @@ def run_esit_sepet_motoru():
     usdt = get_okx_usdt_balance()
     min_usdt_siniri = MIN_ISLEM_TL / dolar
 
-    # Eğer aktif işlem yoksa ve cüzdanda yeterli USDT varsa, tüm sepet coinlerine parayı eşit bölüştürerek alalım!
-    if not AKTIF_ISLEMLER and usdt >= min_usdt_siniri:
-        esit_butce = round(usdt / len(SEPET_COINLERI), 2)
-        if esit_butce < min_usdt_siniri:
-            esit_butce = round(usdt, 2)
-
-        for parite in SEPET_COINLERI:
-            p_fiyat = get_parite_fiyat(parite)
-            if p_fiyat > 0:
-                success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
-                if success:
-                    hedef = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
-                    AKTIF_ISLEMLER.append({
-                        "coin": parite,
-                        "giris": p_fiyat,
-                        "hedef": hedef,
-                        "kar_orani": MIN_GARANTI_KAR,
-                        "rsi_anlik": "54.2",
-                        "rsi_hedef": "68.0",
-                        "butce": esit_butce,
-                        "durum": "🟢 Çoklu Sepet İşlemde"
-                    })
-                    print(f"🟢 [Çoklu Sepet] {parite} Alım Emri | Pay Bütçe: {esit_butce} USDT")
-                    send_telegram_message(ADMIN_ID, f"🟢 *Çoklu Sepet Alımı:* `{parite}` paritesine `{esit_butce} USDT` (`₺{esit_butce * dolar:.2f}`) bütçe ayrıldı! Giriş: `${p_fiyat:,.2f}` 🚀")
-        return
-
-    # Aktif işlemlerin hedeflerini tek tek kontrol edip kâr al yapalım
+    # 1. Önce kâr hedefine ulaşan aktif pozisyonları hızlıca satıp nakite çevirelim
     for islem in list(AKTIF_ISLEMLER):
         parite = islem["coin"]
         p_fiyat = get_parite_fiyat(parite)
@@ -321,6 +293,32 @@ def run_esit_sepet_motoru():
                 print(f"🎯 [Çoklu Sepet] {parite} Hedef Yakalandı! Satış Başarılı.")
                 send_telegram_message(ADMIN_ID, f"🎯 *Çoklu Sepet Kâr Al Gerçekleşti!* `{parite}` +%{k_oran:.2f} kârla kapatıldı! Fiyat: `${p_fiyat:,.2f}` 🚀💰")
                 AKTIF_ISLEMLER.remove(islem)
+
+    # 2. Eğer kasada boşta para kaldıysa ve açık işlem kalmadıysa yeni sepet döngüsünü başlat
+    usdt_guncel = get_okx_usdt_balance()
+    if not AKTIF_ISLEMLER and usdt_guncel >= min_usdt_siniri:
+        esit_butce = round(usdt_guncel / len(SEPET_COINLERI), 2)
+        if esit_butce < min_usdt_siniri:
+            esit_butce = round(usdt_guncel, 2)
+
+        for parite in SEPET_COINLERI:
+            p_fiyat = get_parite_fiyat(parite)
+            if p_fiyat > 0:
+                success = place_okx_real_order(parite, "buy", esit_butce, sz_type="quote_ccy")
+                if success:
+                    hedef = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
+                    AKTIF_ISLEMLER.append({
+                        "coin": parite,
+                        "giris": p_fiyat,
+                        "hedef": hedef,
+                        "kar_orani": MIN_GARANTI_KAR,
+                        "rsi_anlik": "54.2",
+                        "rsi_hedef": "68.0",
+                        "butce": esit_butce,
+                        "durum": "🟢 Çoklu Sepet İşlemde"
+                    })
+                    print(f"🟢 [Çoklu Sepet] {parite} Alım Emri | Pay Bütçe: {esit_butce} USDT")
+                    send_telegram_message(ADMIN_ID, f"🟢 *Çoklu Sepet Alımı:* `{parite}` paritesine `{esit_butce} USDT` (`₺{esit_butce * dolar:.2f}`) bütçe ayrıldı! Giriş: `${p_fiyat:,.2f}` 🚀")
 
 def background_worker():
     global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
@@ -486,7 +484,6 @@ def background_worker():
                                     fark_yuzde = ((p_anlik - g_fiyat) / g_fiyat) * 100 if g_fiyat > 0 else 0.0
                                     isaret = "+" if fark_yuzde >= 0 else ""
                                     
-                                    # İlgili coinin cüzdandaki miktarı
                                     ccy_adi = parite.split('-')[0]
                                     k_miktar = "0.00"
                                     k_usdt = 0.0

@@ -459,6 +459,7 @@ def background_worker():
                                 send_telegram_message(chat_id, "⛔ Yetkin yok!")
                                 continue
                             
+                            # KOMUTLARIN KESİN EŞLEŞMESİ İÇİN DÜZELTİLMİŞ BLOKLAR
                             if text_lower.startswith("/start") or text_lower.startswith("/baslat"):
                                 welcome_msg = (
                                     "🚀 *Apex Pro Terminal Aktif!*\n\n"
@@ -480,38 +481,6 @@ def background_worker():
                             elif text_lower.startswith("/durdur"):
                                 BOT_CALISIYOR = False
                                 send_telegram_message(chat_id, "🔴 Motor Durduruldu!")
-                            elif text_lower.startswith("/sat"):
-                                parcalar = raw_text.split()
-                                coin_secim = "btc"
-                                if len(parcalar) > 1:
-                                    coin_secim = parcalar[1].lower()
-                                    
-                                inst_map = {"btc": "BTC-USDT", "eth": "ETH-USDT", "sol": "SOL-USDT"}
-                                inst_id = inst_map.get(coin_secim, "BTC-USDT")
-                                
-                                _, _, kriptolar = get_okx_account_details()
-                                gercek_miktar = None
-                                for k in kriptolar:
-                                    if k['ccy'] == coin_secim.upper():
-                                        gercek_miktar = k['bal']
-                                        
-                                if not gercek_miktar or float(gercek_miktar) <= 0.000001:
-                                    send_telegram_message(chat_id, f"⚠️ Cüzdanında satılacak `{coin_secim.upper()}` bulunmuyor!")
-                                else:
-                                    success = place_okx_real_order(inst_id, "sell", gercek_miktar, sz_type="base_ccy")
-                                    if success:
-                                        zaman_str = datetime.now().strftime("%d %b %H:%M")
-                                        GECMIS_ISLEMLER.insert(0, {
-                                            "coin": inst_id,
-                                            "islem": "Manuel Satış",
-                                            "kar": "Nakde Çevrildi",
-                                            "tutar": f"{gercek_miktar} {coin_secim.upper()}",
-                                            "zaman": zaman_str
-                                        })
-                                        send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{gercek_miktar} {coin_secim.upper()}` nakite çevrildi! 💰")
-                                        AKTIF_ISLEMLER = [i for i in AKTIF_ISLEMLER if i["coin"] != inst_id]
-                                    else:
-                                        send_telegram_message(chat_id, f"❌ Satış Başarısız! Miktar sınırın altında kalmış olabilir.")
                             elif text_lower.startswith("/aktif"):
                                 cuzdan_senkronize_et()
                                 aktif_metin = "📊 *UNIVERSAL SEPET & AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -558,6 +527,38 @@ def background_worker():
                                             "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                         )
                                 send_telegram_message(chat_id, aktif_metin)
+                            elif text_lower.startswith("/sat"):
+                                parcalar = raw_text.split()
+                                coin_secim = "btc"
+                                if len(parcalar) > 1:
+                                    coin_secim = parcalar[1].lower()
+                                    
+                                inst_map = {"btc": "BTC-USDT", "eth": "ETH-USDT", "sol": "SOL-USDT"}
+                                inst_id = inst_map.get(coin_secim, "BTC-USDT")
+                                
+                                _, _, kriptolar = get_okx_account_details()
+                                gercek_miktar = None
+                                for k in kriptolar:
+                                    if k['ccy'] == coin_secim.upper():
+                                        gercek_miktar = k['bal']
+                                        
+                                if not gercek_miktar or float(gercek_miktar) <= 0.000001:
+                                    send_telegram_message(chat_id, f"⚠️ Cüzdanında satılacak `{coin_secim.upper()}` bulunmuyor!")
+                                else:
+                                    success = place_okx_real_order(inst_id, "sell", gercek_miktar, sz_type="base_ccy")
+                                    if success:
+                                        zaman_str = datetime.now().strftime("%d %b %H:%M")
+                                        GECMIS_ISLEMLER.insert(0, {
+                                            "coin": inst_id,
+                                            "islem": "Manuel Satış",
+                                            "kar": "Nakde Çevrildi",
+                                            "tutar": f"{gercek_miktar} {coin_secim.upper()}",
+                                            "zaman": zaman_str
+                                        })
+                                        send_telegram_message(chat_id, f"⚡ *Manuel Satış Başarılı!* `{gercek_miktar} {coin_secim.upper()}` nakite çevrildi! 💰")
+                                        AKTIF_ISLEMLER = [i for i in AKTIF_ISLEMLER if i["coin"] != inst_id]
+                                    else:
+                                        send_telegram_message(chat_id, f"❌ Satış Başarısız! Miktar sınırın altında kalmış olabilir.")
                             elif text_lower.startswith("/gecmis"):
                                 gecmis_metin = "📜 *SON İŞLEMLER*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                 if not GECMIS_ISLEMLER:

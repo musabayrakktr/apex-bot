@@ -27,10 +27,13 @@ def home():
     try_val = usdt * dolar
     
     global AKTIF_ISLEMLER
-    if not AKTIF_ISLEMLER and btc > 0:
+    if not AKTIF_ISLEMLER and btc > 0 and BOT_CALISIYOR:
         esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 7.31
         hedef_fiyat = btc * (1 + MIN_GARANTI_KAR / 100)
         zaman_str = datetime.now().strftime("%d %b %H:%M")
+        
+        place_okx_real_order_usdt("BTC-USDT", "buy", esit_butce)
+        
         AKTIF_ISLEMLER.append({
             "coin": "BTC-USDT",
             "giris": btc,
@@ -87,9 +90,10 @@ def calistir_web():
 
 @app.route('/durdur_web')
 def durdur_web():
-    global BOT_CALISIYOR
+    global BOT_CALISIYOR, AKTIF_ISLEMLER
     BOT_CALISIYOR = False
-    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
+    AKTIF_ISLEMLER.clear()
+    send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu ve Liste Temizlendi!")
     return redirect(url_for('home'))
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -124,7 +128,7 @@ def set_telegram_commands():
     commands = [
         {"command": "baslat", "description": "🚀 Botu ve Komutları Gör"},
         {"command": "calistir", "description": "🟢 Gerçek Bütçeli Sepet Motorunu Başlat"},
-        {"command": "durdur", "description": "🔴 Motoru Durdur"},
+        {"command": "durdur", "description": "🔴 Motoru Durdur & Temizle"},
         {"command": "aktif", "description": "📊 Anlık Aktif İşlemler & Kazanç"},
         {"command": "gecmis", "description": "📜 Son Tamamlanan İşlemler"},
         {"command": "analiz", "description": "📈 Anlık Piyasa & AI Durumu"},
@@ -230,7 +234,10 @@ def get_live_finans_data():
         return 77331.0, 48.60
 
 def run_gercek_butceli_sepet_motoru():
-    global AKTIF_ISLEMLER, GECMIS_ISLEMLER
+    global AKTIF_ISLEMLER, GECMIS_ISLEMLER, BOT_CALISIYOR
+    if not BOT_CALISIYOR:
+        return
+        
     btc, _ = get_live_finans_data()
     if btc <= 0:
         return
@@ -238,7 +245,7 @@ def run_gercek_butceli_sepet_motoru():
     usdt = get_okx_usdt_balance()
     esit_butce = round(usdt / len(SEPET_COINLERI), 2) if usdt > 0 else 7.31
 
-    if not AKTIF_ISLEMLER:
+    if not AKTIF_ISLEMLER and BOT_CALISIYOR:
         hedef = btc * (1 + MIN_GARANTI_KAR / 100)
         zaman_str = datetime.now().strftime("%d %b %H:%M")
         
@@ -249,7 +256,7 @@ def run_gercek_butceli_sepet_motoru():
             "giris": btc,
             "hedef": hedef,
             "kar_orani": MIN_GARANTI_KAR,
-            "rsi_anlik": "54.2",
+            "rsi_anlik": "52.1",
             "rsi_hedef": "68.0",
             "butce": esit_butce,
             "islem_saati": zaman_str,
@@ -258,23 +265,24 @@ def run_gercek_butceli_sepet_motoru():
         print(f"🟢 [Gerçek Sepet] Alış Emri Gönderildi | Saat: {zaman_str} | Bütçe: {esit_butce} USDT")
         return
 
-    islem = AKTIF_ISLEMLER[0]
-    if btc >= islem["hedef"]:
-        k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
-        place_okx_real_order_usdt("BTC-USDT", "sell", islem.get('butce', 7.31))
-        
-        zaman_str = datetime.now().strftime("%d %b %H:%M")
-        GECMIS_ISLEMLER.insert(0, {
-            "coin": islem["coin"],
-            "islem": f"Alış/Satış (Gerçek Kâr Al)",
-            "kar": f"+%{k_oran:.2f}",
-            "tutar": f"+{islem.get('butce', 7.31) * (k_oran/100):.2f} USDT",
-            "zaman": zaman_str
-        })
-        print(f"🎯 [Gerçek Sepet] Hedef Yakalandı! Satış Başarılı. Fiyat: {btc}")
-        send_telegram_message(ADMIN_ID, f"🎯 *Gerçek OKX Kâr Al Gerçekleşti!* `{islem['coin']}` +%{k_oran:.2f} kârla kapatıldı! Saat: `{zaman_str}` 🚀💰")
-        
-        AKTIF_ISLEMLER.clear()
+    if AKTIF_ISLEMLER:
+        islem = AKTIF_ISLEMLER[0]
+        if btc >= islem["hedef"]:
+            k_oran = islem.get("kar_orani", MIN_GARANTI_KAR)
+            place_okx_real_order_usdt("BTC-USDT", "sell", islem.get('butce', 7.31))
+            
+            zaman_str = datetime.now().strftime("%d %b %H:%M")
+            GECMIS_ISLEMLER.insert(0, {
+                "coin": islem["coin"],
+                "islem": f"Alış/Satış (Gerçek Kâr Al)",
+                "kar": f"+%{k_oran:.2f}",
+                "tutar": f"+{islem.get('butce', 7.31) * (k_oran/100):.2f} USDT",
+                "zaman": zaman_str
+            })
+            print(f"🎯 [Gerçek Sepet] Hedef Yakalandı! Satış Başarılı. Fiyat: {btc}")
+            send_telegram_message(ADMIN_ID, f"🎯 *Gerçek OKX Kâr Al Gerçekleşti!* `{islem['coin']}` +%{k_oran:.2f} kârla kapatıldı! Saat: `{zaman_str}` 🚀💰")
+            
+            AKTIF_ISLEMLER.clear()
 
 def background_worker():
     global BOT_CALISIYOR, GECMIS_ISLEMLER, AKTIF_ISLEMLER
@@ -325,7 +333,7 @@ def background_worker():
                                 "🚀 *Apex Pro Terminal Aktif!*\n\n"
                                 "🎯 *Komutlar:*\n"
                                 "• `/calistir` - Gerçek Sepet Modunu Başlat\n"
-                                "• `/durdur` - Motoru Durdur\n"
+                                "• `/durdur` - Motoru Durdur & Temizle\n"
                                 "• `/aktif` - Anlık Aktif İşlemler & Kazanç\n"
                                 "• `/gecmis` - Son Tamamlanan İşlemler\n"
                                 "• `/analiz` - Anlık Piyasa & AI Durumu\n"
@@ -339,7 +347,8 @@ def background_worker():
                             send_telegram_message(chat_id, "🟢 Gerçek USDT Bütçeli Sepet Motoru Çalıştırıldı! 🚀💰")
                         elif text.startswith("/durdur"):
                             BOT_CALISIYOR = False
-                            send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu!")
+                            AKTIF_ISLEMLER.clear()
+                            send_telegram_message(chat_id, "🔴 Oto Motor Durduruldu ve Aktif Liste Sıfırlandı!")
                         elif text.startswith("/aktif"):
                             btc_guncel, dolar_guncel = get_live_finans_data()
                             aktif_metin = "📊 *ANLIK AKTİF İŞLEMLER & KAZANÇ HESABI*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"

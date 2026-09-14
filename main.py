@@ -135,7 +135,7 @@ def get_okx_account_details():
     kriptolar = []
     
     if not OKX_API_KEY or not OKX_SECRET_KEY or not OKX_PASSPHRASE:
-        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531"}]
+        return 17.65, 0.0, [{"ccy": "BTC", "bal": "0.00015531", "eq": 12.0}]
         
     try:
         request_path = "/api/v5/account/balance"
@@ -161,12 +161,12 @@ def get_okx_account_details():
                     bal = float(coin.get("availBal", "0"))
                     eq = float(coin.get("eq", "0"))
                     ccy = coin.get("ccy")
-                    if ccy == "USDT" and eq > 0:
+                    if ccy == "USDT":
                         nakit_usdt = eq
-                    elif ccy == "TRY" and eq > 0:
+                    elif ccy == "TRY":
                         nakit_try = eq
-                    elif ccy not in ["USDT", "TRY"] and eq > 0:
-                        kriptolar.append({"ccy": ccy, "bal": bal, "eq": eq})
+                    elif ccy not in ["USDT", "TRY"] and bal > 0.0001 and eq > 0.1:
+                        kriptolar.append({"ccy": ccy, "bal": f"{bal:.8f}", "eq": eq})
     except Exception as e:
         print(f"Detaylı bakiye okuma hatası: {e}")
         nakit_usdt = 17.65
@@ -360,12 +360,13 @@ def background_worker():
                                     h_fiyat = islem['hedef']
                                     k_oran = islem.get('kar_orani', MIN_GARANTI_KAR)
                                     fark_yuzde = ((btc_anlik - g_fiyat) / g_fiyat) * 100
+                                     isaret = "+" if fark_yuzde >= 0 else ""
                                     aktif_metin += (
                                         f"🪙 *Parite:* `{islem['coin']}`\n"
                                         f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}`\n"
                                         f"🎯 *Satış Hedef Fiyatı:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
                                         f"📈 *Anlık Piyasa Fiyatı:* `${btc_anlik:,.2f}`\n"
-                                        f"📊 *Mevcut Durum / Kâr:* `%+{fark_yuzde:.2f}`\n"
+                                        f"📊 *Mevcut Durum / Kâr:* `{isaret}{fark_yuzde:.2f}%`\n"
                                         f"💵 *İşleme Ayrılan Bütçe:* `{islem.get('butce', 0):.2f} USDT`\n"
                                         f"📈 *Teknik Gösterge (RSI):* `{islem['rsi_anlik']}`\n"
                                         f"⚙️ *Sistem Durumu:* {islem['durum']}\n"
@@ -411,7 +412,7 @@ def background_worker():
                                 for k in kriptolar:
                                     cuzdan_msg += f"• *{k['ccy']}*: `{k['bal']}` (Değer: `~{k['eq']:.2f} USDT`)\n"
                             else:
-                                cuzdan_msg += "• Aktif tutulan ekstra kripto yok (Tümü sepette veya nakitte).\n"
+                                cuzdan_msg += "• Aktif tutulan büyük kripto varlık yok.\n"
                                 
                             cuzdan_msg += (
                                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"

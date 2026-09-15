@@ -20,22 +20,24 @@ AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = []
 
 def cuzdan_senkronize_et():
-    """Bot başlarken veya /aktif çekildiğinde OKX TR cüzdanındaki mevcut coinleri otomatik algılayıp listeye ekler"""
+    """Bot başlarken veya /aktif çekildiğinde OKX TR cüzdanındaki mevcut coinleri otomatik algılar, cüzdan boşsa listeyi tamamen temizler"""
     global AKTIF_ISLEMLER
     try:
         _, _, kriptolar = get_okx_account_details()
-        mevcut_coinler = [i["coin"] for i in AKTIF_ISLEMLER]
+        mevcut_coinler = []
         for k in kriptolar:
             ccy = k['ccy']
             bal = float(k['bal'])
             parite = f"{ccy}-USDT"
             if parite in SEPET_COINLERI and bal > 0.0000001:
+                mevcut_coinler.append(parite)
                 p_fiyat = get_parite_fiyat(parite)
                 anlik_rsi = get_real_rsi(parite)
                 hedef_fiyat = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
                 stop_fiyat = p_fiyat * (1 - MAKSIMUM_ZARAR_TOLERANSI / 100)
                 
-                if parite not in mevcut_coinler:
+                var_mi = any(i["coin"] == parite for i in AKTIF_ISLEMLER)
+                if not var_mi:
                     AKTIF_ISLEMLER.append({
                         "coin": parite,
                         "giris": p_fiyat,
@@ -46,6 +48,10 @@ def cuzdan_senkronize_et():
                         "butce": bal * p_fiyat,
                         "durum": "🛡️ Cüzdandan Senkronize Edildi"
                     })
+        
+        # Cüzdandan manuel satılan (artık olmayan) hayalet kayıtları listeden uçurur
+        AKTIF_ISLEMLER = [i for i in AKTIF_ISLEMLER if i["coin"] in mevcut_coinler]
+        
     except Exception as e:
         print(f"Cüzdan senkronizasyon hatası: {e}")
 

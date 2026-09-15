@@ -545,6 +545,9 @@ def background_worker():
                                     fark_yuzde = ((p_anlik - g_fiyat) / g_fiyat) * 100 if g_fiyat > 0 else 0.0
                                     isaret = "+" if fark_yuzde >= 0 else ""
                                     
+                                    # Hedefe kalan yüzde mesafe hesabı
+                                    hedefe_kalan_yuzde = ((h_fiyat - p_anlik) / p_anlik) * 100 if p_anlik > 0 else 0.0
+                                    
                                     guncel_rsi = get_real_rsi(parite)
                                     islem['rsi_anlik'] = f"{guncel_rsi:.1f}"
                                     
@@ -561,6 +564,7 @@ def background_worker():
                                         f"🪙 *Parite:* `{parite}`\n"
                                         f"📥 *Alış Giriş Fiyatı:* `${g_fiyat:,.2f}` (`{islem_butce:.2f} USDT` / `₺{islem_try:,.2f}`)\n"
                                         f"🎯 *Hedef Eşik:* `${h_fiyat:,.2f}` (+%{k_oran:.1f})\n"
+                                        f"⏳ *Hedefe Kalan Mesafe:* `+{hedefe_kalan_yuzde:.2f}%`\n"
                                         f"🛡️ *AI Stop-Loss Sınırı:* `${s_fiyat:,.2f}` (-%{MAKSIMUM_ZARAR_TOLERANSI})\n"
                                         f"📈 *Anlık Piyasa Fiyatı:* `${p_anlik:,.2f}`\n"
                                         f"📊 *Mevcut Durum / Kâr:* `{isaret}{fark_yuzde:.2f}%`\n"

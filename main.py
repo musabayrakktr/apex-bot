@@ -19,6 +19,36 @@ MIN_ISLEM_TL = 250.0           # Borsa minimum işlem sınırı (250 TL)
 AKTIF_ISLEMLER = []
 GECMIS_ISLEMLER = []
 
+def cuzdan_senkronize_et():
+    """Bot başlarken veya /aktif çekildiğinde OKX TR cüzdanındaki mevcut coinleri otomatik algılayıp listeye ekler"""
+    global AKTIF_ISLEMLER
+    try:
+        _, _, kriptolar = get_okx_account_details()
+        mevcut_coinler = [i["coin"] for i in AKTIF_ISLEMLER]
+        for k in kriptolar:
+            ccy = k['ccy']
+            bal = float(k['bal'])
+            parite = f"{ccy}-USDT"
+            if parite in SEPET_COINLERI and bal > 0.0000001:
+                p_fiyat = get_parite_fiyat(parite)
+                anlik_rsi = get_real_rsi(parite)
+                hedef_fiyat = p_fiyat * (1 + MIN_GARANTI_KAR / 100)
+                stop_fiyat = p_fiyat * (1 - MAKSIMUM_ZARAR_TOLERANSI / 100)
+                
+                if parite not in mevcut_coinler:
+                    AKTIF_ISLEMLER.append({
+                        "coin": parite,
+                        "giris": p_fiyat,
+                        "hedef": hedef_fiyat,
+                        "stop_loss": stop_fiyat,
+                        "kar_orani": MIN_GARANTI_KAR,
+                        "rsi_anlik": f"{anlik_rsi:.1f}",
+                        "butce": bal * p_fiyat,
+                        "durum": "🛡️ Cüzdandan Senkronize Edildi"
+                    })
+    except Exception as e:
+        print(f"Cüzdan senkronizasyon hatası: {e}")
+
 @app.route('/')
 def home():
     btc, dolar = get_live_finans_data()
@@ -28,7 +58,12 @@ def home():
     min_usdt_siniri = MIN_ISLEM_TL / dolar
     global AKTIF_ISLEMLER
     
-    if not AKTIF_ISLEMLER and usdt >= min_usdt_siniri:
+    cuzdan_senkronize_et()
+    
+    _, _, kriptolar = get_okx_account_details()
+    toplam_kripto_adet = sum([float(k['bal']) for k in kriptolar if float(k['bal']) > 0.0000001])
+    
+    if not AKTIF_ISLEMLER and toplam_kripto_adet == 0 and usdt >= min_usdt_siniri:
         esit_butce = round(usdt / len(SEPET_COINLERI), 2)
         if esit_butce < min_usdt_siniri:
             esit_butce = round(usdt, 2)
@@ -81,14 +116,14 @@ def home():
 def calistir_web():
     global BOT_CALISIYOR
     BOT_CALISIYOR = True
+    cuzdan_senkronize_et()
     send_telegram_message(ADMIN_ID, "🟢 *Web Panelden Tetiklendi:* AI Canlı RSI & Koruma Botu Aktif! 🚀📊")
     return redirect(url_for('home'))
 
 @app.route('/durdur_web')
 def durdur_web():
-    global BOT_CALISIYOR, AKTIF_ISLEMLER
+    global BOT_CALISIYOR
     BOT_CALISIYOR = False
-    AKTIF_ISLEMLER.clear()
     send_telegram_message(ADMIN_ID, "🔴 *Web Panelden Tetiklendi:* Oto Motor Durduruldu!")
     return redirect(url_for('home'))
 
@@ -289,6 +324,8 @@ def get_live_finans_data():
 
 def run_esit_sepet_motoru():
     global AKTIF_ISLEMLER, GECMIS_ISLEMLER
+    cuzdan_senkronize_et()
+    
     btc, dolar = get_live_finans_data()
     if btc <= 0:
         return
@@ -338,7 +375,7 @@ def run_esit_sepet_motoru():
                         "coin": parite,
                         "islem": f"AI Stop-Loss",
                         "kar": f"%{gercek_zarar_orani:.2f}",
-                        "tutar": f"Sermaye Korundu",
+                        "tutar": "Sermaye Korundu",
                         "zaman": zaman_str
                     })
                     send_telegram_message(ADMIN_ID, f"🛡️ *AI Koruma Kalkanı Devrede!* `{parite}` paritesinde düşüş onaylandığı için pozisyon kapatıldı.")
@@ -347,7 +384,10 @@ def run_esit_sepet_motoru():
                 islem["durum"] = f"🛡️ Koruma Aktif (RSI: {anlik_rsi} - Tutuluyor)"
 
     usdt_guncel = get_okx_usdt_balance()
-    if not AKTIF_ISLEMLER and usdt_guncel >= min_usdt_siniri:
+    _, _, kriptolar = get_okx_account_details()
+    toplam_kripto_adet = sum([float(k['bal']) for k in kriptolar if float(k['bal']) > 0.0000001])
+    
+    if not AKTIF_ISLEMLER and toplam_kripto_adet == 0 and usdt_guncel >= min_usdt_siniri:
         esit_butce = round(usdt_guncel / len(SEPET_COINLERI), 2)
         if esit_butce < min_usdt_siniri:
             esit_butce = round(usdt_guncel, 2)
@@ -438,6 +478,7 @@ def background_worker():
                             send_telegram_message(chat_id, welcome_msg)
                         elif text_lower.startswith("/calistir"):
                             BOT_CALISIYOR = True
+                            cuzdan_senkronize_et()
                             send_telegram_message(chat_id, "🟢 Canlı RSI ve AI Koruma Motoru Çalıştırıldı! 🚀📊")
                         elif text_lower.startswith("/durdur"):
                             BOT_CALISIYOR = False
@@ -526,6 +567,7 @@ def background_worker():
                                 else:
                                     send_telegram_message(chat_id, f"❌ Borsa küsurat sınırına takıldı! /al komutuyla biraz daha alıp satabilirsin kanka.")
                         elif text_lower.startswith("/aktif"):
+                            cuzdan_senkronize_et()
                             aktif_metin = "📊 *CANLI RSI & AKTİF İŞLEMLER* 🚀\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             if not AKTIF_ISLEMLER:
                                 aktif_metin += "Şu an takipte aktif işlem yok (AI yeni fırsat arıyor ⏳)."
@@ -545,7 +587,6 @@ def background_worker():
                                     fark_yuzde = ((p_anlik - g_fiyat) / g_fiyat) * 100 if g_fiyat > 0 else 0.0
                                     isaret = "+" if fark_yuzde >= 0 else ""
                                     
-                                    # Hedefe kalan yüzde mesafe hesabı
                                     hedefe_kalan_yuzde = ((h_fiyat - p_anlik) / p_anlik) * 100 if p_anlik > 0 else 0.0
                                     
                                     guncel_rsi = get_real_rsi(parite)
